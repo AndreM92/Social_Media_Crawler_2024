@@ -16,7 +16,7 @@ of every posting
 - The DateTime on Facebook isn't displayed as text anymore, so I had to solve this problem with 
 inaccurate text scraping, screenshots and image reading (Pillow/ Pytesseract)
 - the links are partially provided only in XML format: 
-<use xlink:href="#gid111" xmlns:xlink="http://www.w3.org/1999/xlink"></use>.
+"use xlink:href="#gid111" xmlns:xlink="http://www.w3.org/1999/xlink"></use"
 <br>
 
 I am grateful for any proposed solutions to overcome these seemingly insurmountable problems for me.
