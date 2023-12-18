@@ -1,5 +1,5 @@
 # Passwords
-credentials.py
+credentials_file.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

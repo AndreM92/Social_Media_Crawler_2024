@@ -1,5 +1,5 @@
 from crawler_functions import *
-import credentials as cred
+import credentials_file as cred
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys

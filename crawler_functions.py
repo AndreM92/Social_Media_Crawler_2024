@@ -37,7 +37,6 @@ def go_to_page(driver, startpage):
             except:
                 pass
 
-
 # Login functions and further cookie banner decline functions are in the individual files
 
 ########################################################################################################################
