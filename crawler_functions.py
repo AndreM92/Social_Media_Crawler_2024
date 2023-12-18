@@ -52,6 +52,8 @@ def get_visible_text(Comment, soup):
     texts = soup.find_all(string=True)
     visible_texts = filter(tag_visible, texts)
     pagetext = u" ".join(t.strip() for t in visible_texts)
+    pagetext = re.sub('\n', ' ', pagetext).replace('\\xa0', ' ')
+    pagetext = re.sub('\s+', ' ', pagetext).strip()
     return pagetext
 
 
@@ -64,7 +66,7 @@ def extract_text(element):
         if element == '':
             return element
         elif len(element) >= 1:
-            repl_element = re.sub('\n', ' ', element).replace('\\xa0', ' ').replace('', ' ')
+            repl_element = re.sub('\n', ' ', element).replace('\\xa0', ' ').replace('', ' ').replace(r'\u200b','')
             new_element = re.sub('\s+', ' ', repl_element).strip()
             return new_element
         else:
@@ -95,6 +97,11 @@ def extract_big_number(element):
         if 'M' in element:
             try:
                 element = str(int(float(element.replace("Mio", " ").replace("M", " ").split(' ')[0].replace(",", ".").strip()) * 1000000))
+            except:
+                return element
+        elif 'Tsd.' in element:
+            try:
+                element = float(str(re.sub(r'[^0-9,]', '', element)).strip().replace(',','.')) * 1000
             except:
                 return element
         elif ',' in element:
@@ -266,13 +273,40 @@ def dateFormat(d):
     month = str(month).zfill(2)
     date_string = f'{year}-{month}-{day}'
     dt_format = datetime.strptime(date_string, '%Y-%m-%d')
-
     return dt_format
+
+
+def get_approx_date(crawl_date_dt, date_text):
+    if not date_text or date_text == '':
+        return [crawl_date_dt,'']
+    if 'Tag' in date_text:
+        delta = int(re.sub(r'[^0-9]', '', date_text))
+        post_date_dt = crawl_date_dt - timedelta(days=delta)
+    elif 'Woche' in date_text:
+        delta = int(re.sub(r'[^0-9]', '', date_text))
+        post_date_dt = crawl_date_dt - timedelta(weeks=delta)
+    elif 'Monat' in date_text:
+        delta = int(re.sub(r'[^0-9]', '', date_text))
+        post_date_dt = crawl_date_dt - timedelta(days=delta*30)
+        post_date_dt = post_date_dt.replace(day=1)
+    elif 'Jahr' in date_text:
+        delta = int(re.sub(r'[^0-9]', '', date_text))
+        if delta == 1:
+            post_date_dt = crawl_date_dt - timedelta(days=365)
+            post_date_dt = post_date_dt.replace(day=1)
+        else:
+            post_date_dt = crawl_date_dt - timedelta(days=730)
+            post_date_dt = post_date_dt.replace(day=1)
+    else:
+        post_date_dt = crawl_date_dt
+    post_date = post_date_dt.strftime("%d.%m.%Y")
+
+    return [post_date_dt, post_date]
 
 
 ########################################################################################################################
 # Special Functions
-#Take a screnshot and extract the text
+#Take a screenshot and extract the text
 def get_text_from_screenshot(driver, p_name):
     path_tes = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     pytesseract.tesseract_cmd = path_tes
