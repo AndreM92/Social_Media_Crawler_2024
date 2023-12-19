@@ -149,11 +149,17 @@ login(cred.useremail_li, cred.password_li)
 
 
 # Loop
+count = 0
 for id, row in df_source.iterrows():
+    count += 1
+    if count < 5:
+        continue
     link = str(row[network])
     if len(link) < 10:
         print(link)
         continue
+    break
+
     company = row['Firma']
     scraped_row = scrapeProfile(company, link, date_str)
     data.append([id,company] + scraped_row)
@@ -171,7 +177,80 @@ file_path = 'Profile_' + network + '.xlsx'
 with pd.ExcelWriter(file_path) as writer:
     df_profiles.to_excel(writer, sheet_name='Profildaten')
 #df_profiles.to_excel(filename_profiles)
+########################################################################################################################
 
+# Special functions for scraping the Posts
+# Full scrolls (posts don't disappear)
+# Only posts within a year are shown on the page
+def scroll_to_bottom():
+    start_height = driver.execute_script('return document.body.scrollHeight')
+    new_height = ''
+    safety_counter = 0
+    while start_height != new_height and safety_counter <= 20:
+        driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
+        time.sleep(1)
+        new_height = driver.execute_script('return document.body.scrollHeight')
+        safety_counter += 1
+########################################################################################################################
+
+# Settings for the post crawler
+source_file = "Profildaten_Energieanbieter_1.xlsx"
+df_source = pd.read_excel(source_file, sheet_name=network)
+df_source.set_index('ID',inplace=True)
+dt = datetime.now()
+dt_str = dt.strftime("%d.%m.%Y")
+lower_dt = datetime.strptime('2022-10-31','%Y-%m-%d')
+upper_dt = datetime.strptime('2023-11-01','%Y-%m-%d')
+
+data_posts = []
+
+new_path = r"C:\Users\andre\OneDrive\Desktop\SSM_Energieanbieter"
+os.chdir(new_path)
+datelimit_str = '31.10.2022'
+datelimit = datetime.strptime(datelimit_str,'%d.%m.%Y')
+
+
+# Start crawling
+driver = start_browser(webdriver, Service, chromedriver_path)
+go_to_page(driver, startpage)
+login(cred.useremail_li, cred.password_li)
+
+# Loop
+for id, row in df_source.iterrows():
+    if len(str(row['last post'])) <= 4 or str(row['last post']).strip() == 'Keine Beiträge':
+        continue
+    p_name = row['Profilname']
+    url = row['url']
+    print(id, p_name, url)
+
+#def scrape_posts(p_name, url):
+    driver.get(url + 'posts/?feedView=all')
+    time.sleep(2)
+    scroll_to_bottom()
+
+# def scrape_links():
+    linklist = []
+    dropdown_buttons = driver.find_elements(By.CSS_SELECTOR,'svg[a11y-text="Kontrollmenü öffnen"]')
+
+    dropdown_buttons[-1].click()
+
+    # Wait for the dropdown to appear
+    dropdown_selector = '.artdeco-dropdown__content-inner'
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, dropdown_selector)))
+
+    # Locate the "Link zum Artikel kopieren" option by its visible text and click it
+    try:
+        link_selector = f'//div[contains(@class, "{dropdown_selector}")]/descendant::*[normalize-space(.)="Link zum Artikel kopieren"]'
+        link_element = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, link_selector)))
+        link_element.click()
+    except:
+        copy_link_button = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Link zum Artikel kopieren')]"))
+        )
+
+    # Selenium is unable to locate the Button responsible for copying the link
+
+# This code ends here
 
 
 ########################################################################################################################
