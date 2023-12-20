@@ -37,6 +37,20 @@ def go_to_page(driver, startpage):
             except:
                 pass
 
+def start_pw_browser(sync_playwright, loginpage):
+    pw = sync_playwright().start()
+    browser = pw.chromium.launch(headless=False)
+    page = browser.new_page()
+    page.goto(loginpage)
+    time.sleep(1)
+    try:
+        decline_cookies = page.get_by_role("button", name="Ablehnen")
+        decline_cookies.click()
+        time.sleep(1)
+    except:
+        pass
+    return pw, browser, page
+
 # Login functions and further cookie banner decline functions are in the individual files
 
 ########################################################################################################################
