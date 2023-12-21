@@ -430,16 +430,22 @@ except:
 ########################################################################################################################
 # Correcting the dates with post links
 fill_data = []
-source_file = r"C:\Users\andre\OneDrive\Desktop\SSM_Energieanbieter\Beiträge_Facebook_2023-11-26_aktuell.xlsx"
+#source_file = r"C:\Users\andre\OneDrive\Desktop\SSM_Energieanbieter\Beiträge_Facebook_2023-11-26_aktuell.xlsx"
+source_file = r"dates_to_correct.xlsx"
 df_fillc = pd.read_excel(source_file)
+count = 0
 for id, row in df_fillc.iterrows():
+    count += 1
+#    if count == 1:
+#        continue
     n = row['ID']
     link = str(row['Link'])
     p_name = row['Profilname']
-    date = str(row['Datum_Beitrag'])
+#    date = str(row['Datum_Beitrag'])
+    date = str(row['Datum'])
     content = str(row['Content'])
-    if n <= 11952:
-        continue
+#    if n <= 11952:
+ #       continue
     go_crawl = False
     if 'http' in link and '/posts/' in link and not 'Reels' in content:
         try:
@@ -469,7 +475,8 @@ for id, row in df_fillc.iterrows():
             else:
                 date_str = datelist[0]
             try:
-                current_dt = dateFormat(datelist[0])
+                current_dt = dateFormat(date_str)
+                alt_date = dateFormat(datelist[-1])
                 date = current_dt.strftime('%d.%m.%Y')
             except:
                 pass
@@ -495,13 +502,15 @@ for id, row in df_fillc.iterrows():
                 content = '__' + content
     if len(str(content)) <= 5:
         content = ''
+    print(date, alt_date, datelist)
+
 
     fill_data.append([n, p_name, date, content])
     #print(n, p_name, date, content[:100])
 
 
-df_filled = pd.DataFrame(fill_data, columns=['id', 'Profilname', 'Datum2', 'Content2'])
-df_filled.to_excel('Corrected_Dates2.xlsx')
+df_filled = pd.DataFrame(fill_data, columns=['ID', 'Profilname', 'Datum2', 'Content2'])
+df_filled.to_excel('Corrected_Dates.xlsx')
 print('Done')
 driver.quit()
 
