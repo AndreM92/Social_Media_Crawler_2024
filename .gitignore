@@ -1,5 +1,6 @@
 # Passwords
 credentials_file.py
+codegen_playground.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -256,7 +256,13 @@ def dateFormat(d):
         if 'Gestern' in d:
             day = datetime.now().day - 1
         elif 'Tag' in d:
-            day = datetime.now().day - int(re.sub(r'\D', '', d.split()[0]))
+            delta = int(re.sub(r'\D', '', d.split()[0]))
+            day = datetime.now().day - delta
+            if int(day) <= 0:
+                new_date = datetime.now() - timedelta(days=delta)
+                day = new_date.day
+                month = new_date.month
+                year = new_date.year
         else:
             date_ls = d.split('.')
             if len(date_ls) == 2:

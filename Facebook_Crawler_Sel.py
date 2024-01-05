@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 import os
 
 # Settings
-newpath = r"C:\Users\andre\OneDrive\Desktop\SSM_Energieanbieter"
+newpath = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
 os.chdir(newpath)
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 startpage = 'https://www.facebook.com/'
@@ -172,48 +172,58 @@ def scrapeProfile(url):
 
 
 ########################################################################################################################
-source_file = r"C:\Users\andre\OneDrive\Desktop\SSM_Energieanbieter\Energieanbieter_Auswahl.xlsx"
-df_source = pd.read_excel(source_file)
-df_source.set_index('ID',inplace=True)
-col_list = list(df_source.columns)
-if 'Anbieter' in col_list:
-    comph_header = 'Anbieter'
-elif 'Firma' in col_list:
-    comp_header = 'Firma'
-comph2 = 'Name in Studie'
-dt = datetime.now()
-dt_str = dt.strftime("%d.%m.%Y")
+if __name__ == '__main__':
+    #source_file = r"C:\Users\andre\OneDrive\Desktop\SSM_Energieanbieter\Energieanbieter_Auswahl.xlsx"
+    source_file = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel\Links_Zusammenführung.xlsx"
+    df_source = pd.read_excel(source_file)
+    df_source.set_index('ID',inplace=True)
+    col_list = list(df_source.columns)
+    if 'Anbieter' in col_list:
+        comp_header = 'Anbieter'
+    elif 'Firma' in col_list:
+        comp_header = 'Firma'
+    comph2 = 'Name in Studie'
+    dt = datetime.now()
+    dt_str = dt.strftime("%d.%m.%Y")
 
-data = []
+    data = []
 
-# Start crawling
-driver = start_browser(webdriver, Service, chromedriver_path)
-go_to_page(driver, startpage)
-login(cred.email_fb, cred.password_fb, driver, pyautogui)
+    # Start crawling
+    driver = start_browser(webdriver, Service, chromedriver_path)
+    go_to_page(driver, startpage)
+    login(cred.email_fb, cred.password_fb, driver, pyautogui)
 
-# Loop
-for id, row in df_source.iterrows():
-    company = row[comp_header]
-    comp_keywords = get_company_keywords(company, row, col_list)
-    comp_keywords += [row[comph2]]
-    url = str(row[network])
-    if len(url) < 10:
-        empty_row = [id, company, dt_str] + ['' for _ in range(7)]
-        continue
+    # Loop
+    for id, row in df_source.iterrows():
+        if id <= 507:
+            continue
+        company = row[comp_header]
+        comp_keywords = get_company_keywords(company, row, col_list)
+        if comph2 in col_list:
+            comp_keywords += [row[comph2]]
+        url = str(row[network])
+        if len(url) < 10:
+            empty_row = [id, company, dt_str] + ['' for _ in range(7)]
+            data.append(empty_row)
+            continue
 
-    scraped_data = scrapeProfile(url)
-    full_row = [id, company, dt_str] + scraped_data
-    data.append(full_row)
-#    print(full_row[:-1])
+        scraped_data = scrapeProfile(url)
+        full_row = [id, company, dt_str] + scraped_data
+        data.append(full_row)
+        print(full_row[:-1])
 
-# DataFrame
-header = ['ID','Anbieter','Erh.Datum','Profilname','likes','follower','last post','url', 'description1','description2']
-dfProfiles = pd.DataFrame(data,columns=header)
-dfProfiles.set_index('ID')
+    # DataFrame
+    header = ['ID','Anbieter','Erhebung','Profilname','likes','follower','last post','url', 'description1','description2']
+    dfProfiles = pd.DataFrame(data,columns=header)
+    dfProfiles.set_index('ID')
 
-with pd.ExcelWriter('Profile_Facebook.xlsx') as writer:
-    dfProfiles.to_excel(writer, sheet_name='Profildaten')
+    # Export to Excel
+    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+    recent_filename = 'Profile_Facebook_' + dt_str_now + '.xlsx'
+    with pd.ExcelWriter(recent_filename) as writer:
+        dfProfiles.to_excel(writer, sheet_name='Profildaten')
 
+    driver.quit()
 ########################################################################################################################
 # Post crawler functions
 def get_oldest_date():
