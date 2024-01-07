@@ -80,7 +80,7 @@ def extract_text(element):
         if element == '':
             return element
         elif len(element) >= 1:
-            repl_element = re.sub('\n', ' ', element).replace('\\xa0', ' ').replace('', ' ').replace(r'\u200b','')
+            repl_element = element.replace('\u200b','').replace('\xa0', ' ').replace('\\xa0', ' ').replace('\n',' ')
             new_element = re.sub('\s+', ' ', repl_element).strip()
             return new_element
         else:
@@ -113,7 +113,7 @@ def extract_big_number(element):
                 element = str(int(float(element.replace("Mio", " ").replace("M", " ").split(' ')[0].replace(",", ".").strip()) * 1000000))
             except:
                 return element
-        elif 'Tsd.' in element:
+        elif 'Tsd.' in element or str(element)[-1] == 'K':
             try:
                 element = float(str(re.sub(r'[^0-9,]', '', element)).strip().replace(',','.')) * 1000
             except:
