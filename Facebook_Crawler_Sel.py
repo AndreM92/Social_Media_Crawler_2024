@@ -31,6 +31,19 @@ startpage = 'https://www.facebook.com/'
 network = 'Facebook'
 ########################################################################################################################
 
+def settings(source_file):
+    df_source = pd.read_excel(source_file)
+    df_source.set_index('ID',inplace=True)
+    col_list = list(df_source.columns)
+    if 'Anbieter' in col_list:
+        comp_header = 'Anbieter'
+    elif 'Firma' in col_list:
+        comp_header = 'Firma'
+    comp_header2 = 'Name in Studie'
+    dt = datetime.now()
+    dt_str = dt.strftime("%d.%m.%Y")
+    return df_source, col_list, comp_header, comp_header2, dt, dt_str
+
 # Login function
 def login(useremail, password, driver, pyautogui):
     try:
@@ -170,47 +183,36 @@ def scrapeProfile(url):
     new_url = driver.current_url
     return [p_name, pagelikes, follower, last_post, new_url, desc1, desc2]
 
-
 ########################################################################################################################
 if __name__ == '__main__':
     #source_file = r"C:\Users\andre\OneDrive\Desktop\SSM_Energieanbieter\Energieanbieter_Auswahl.xlsx"
-    source_file = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel\Links_Zusammenführung.xlsx"
-    df_source = pd.read_excel(source_file)
-    df_source.set_index('ID',inplace=True)
-    col_list = list(df_source.columns)
-    if 'Anbieter' in col_list:
-        comp_header = 'Anbieter'
-    elif 'Firma' in col_list:
-        comp_header = 'Firma'
-    comph2 = 'Name in Studie'
-    dt = datetime.now()
-    dt_str = dt.strftime("%d.%m.%Y")
+    source_file = 'Liste_Nahrungsergänzungsmittel_2024_20240108.xlsx'
+    df_source, col_list, comp_header, comp_header2, dt, dt_str = settings(source_file)
 
+    # Open the browser, go to the startpage and login
     data = []
-
-    # Start crawling
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
     login(cred.email_fb, cred.password_fb, driver, pyautogui)
 
     # Loop
     for id, row in df_source.iterrows():
-        if id <= 507:
+        if id <= -1:
             continue
-        company = row[comp_header]
+        company = extract_text(row[comp_header])
         comp_keywords = get_company_keywords(company, row, col_list)
-        if comph2 in col_list:
-            comp_keywords += [row[comph2]]
+        if comp_header2 in col_list:
+            comp_keywords += [row[comp_header2]]
         url = str(row[network])
         if len(url) < 10:
-            empty_row = [id, company, dt_str] + ['' for _ in range(7)]
-            data.append(empty_row)
+            data.append([id, company, dt_str] + ['' for _ in range(7)])
             continue
 
         scraped_data = scrapeProfile(url)
         full_row = [id, company, dt_str] + scraped_data
         data.append(full_row)
         print(full_row[:-1])
+
 
     # DataFrame
     header = ['ID','Anbieter','Erhebung','Profilname','likes','follower','last post','url', 'description1','description2']
