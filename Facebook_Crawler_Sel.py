@@ -184,6 +184,7 @@ def scrapeProfile(url):
     return [p_name, pagelikes, follower, last_post, new_url, desc1, desc2]
 
 ########################################################################################################################
+# Profile Crawler
 if __name__ == '__main__':
     #source_file = r"C:\Users\andre\OneDrive\Desktop\SSM_Energieanbieter\Energieanbieter_Auswahl.xlsx"
     source_file = 'Liste_Nahrungsergänzungsmittel_2024_20240108.xlsx'
@@ -213,19 +214,20 @@ if __name__ == '__main__':
         data.append(full_row)
         print(full_row[:-1])
 
-
     # DataFrame
     header = ['ID','Anbieter','Erhebung','Profilname','likes','follower','last post','url', 'description1','description2']
     dfProfiles = pd.DataFrame(data,columns=header)
     dfProfiles.set_index('ID')
 
     # Export to Excel
-    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+#    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+    dt_str_now = datetime.now().strftime("%Y-%m-%d")
     recent_filename = 'Profile_Facebook_' + dt_str_now + '.xlsx'
     with pd.ExcelWriter(recent_filename) as writer:
         dfProfiles.to_excel(writer, sheet_name='Profildaten')
 
     driver.quit()
+
 ########################################################################################################################
 # Post crawler functions
 def get_oldest_date():
@@ -295,33 +297,34 @@ def scrape_reel(datelist, rawtext, p):
     return reel_data
 
 
-def scrape_post(rawtext, p_name, p):
+def scrape_post(p_text, p_name, p):
     reactions, likes, comments, shares, link, image, video = ['' for _ in range(7)]
-    try:
-        p_text = rawtext.split(p_name, 1)[1]
-    except:
-        p_text = rawtext.split('·', 2)[2].strip()
-    if 'Kommentieren' in p_text:
-        p_text = p_text.replace('Kommentieren', 'Kommentar***').split('***')[0]
-    p_text = extract_text(p_text.replace('·',''))
+    if '·' in p_text:
+        p_text = p_text.split('·', 1)[1].split('Teilen')[0].strip()
+    if '·' in p_text:
+        p_text = p_text.split('·', 1)[1].strip()
+    if 'Teilen' in p_text:
+        p_text = p_text.split('Teilen')[0].strip()
+    else:
+        if 'Kommentieren' in p_text:
+            p_text = extract_text(p_text.split('Kommentieren')[0])
     links = [str(l['href']) for l in p.find_all('a', href=True)]
     f_links = [l for l in links if 'post' in l or '/p/' in l]
-    c_links = [l.split('?')[0] for l in f_links if '?' in l]
-    if len(c_links) >= 1:
-        link = c_links[0]
+    if len(f_links) == 0:
+        f_links = [l for l in links if '/video' in l]
+    if len(f_links) == 0:
+        f_links = [l for l in links if '/photo' in l]
+    if len(f_links) >= 1:
+        link = f_links[0]
     not_imagelinks = ['profile', 'hashtag', 'emoji']
     imagelinks_all = [p['src'] for p in p.find_all('img', src=True)]
     imagelinks = [p for p in imagelinks_all if not any(e in p for e in not_imagelinks)]
     if len(imagelinks) >= 1 or 'Bild' in str(p):
-        image = 1
-        video = 0
+        image, video = 1,0
     if 'livestream' in p_text or p.find('video', src=True) or p.find('div', {'aria-label': 'Play'}):
-        video = 1
-        image = 0
+        video, image = 1,0
     p_basics = [image, video, link, p_text]
-    if 'Kommentieren' in p_text:
-        p_text = extract_text(p_text.split('Kommentieren')[0])
-    if 'Alle Reaktionen:' in p_text:
+    if 'Alle Reaktionen' in p_text:
         reactions = p_text.split('Alle Reaktionen:')[1].strip()
     if 'All reactions' in p_text:
         reactions = p_text.split('All reactions:')[1].strip()
@@ -352,21 +355,27 @@ def scrape_post(rawtext, p_name, p):
     return [likes, comments, shares] + p_basics
 
 ########################################################################################################################
-# Settings for the post crawler
-source_file = "Profildaten_Energieanbieter_1.xlsx"
-df_source = pd.read_excel(source_file, sheet_name=network)
-df_source.set_index('ID',inplace=True)
-dt = datetime.now()
-dt_str = dt.strftime("%d.%m.%Y")
-lower_dt = datetime.strptime('2022-10-31','%Y-%m-%d')
-upper_dt = datetime.strptime('2023-11-01','%Y-%m-%d')
+# Post Crawler
+if __name__ == '__main__':
+    # Settings for the post crawler
+    upper_dt = datetime.strptime('2023-11-01', '%Y-%m-%d')
+    lower_dt = upper_dt - timedelta(days=365)
 
-all_data = []
+    if 'Profile_Facebook_' + dt_str_now + '.xlsx' in os.listdir():
+        source_file = 'Profile_Facebook_' + dt_str_now + '.xlsx'
+    elif 'Profile_Facebook_2024-01-09.xlsx' in os.listdir():
+        source_file = 'Profile_Facebook_2024-01-09.xlsx'
+    else:
+        print('Facebook File not found')
+        exit()
 
-# start crawling the posts
-driver = start_browser(webdriver, Service, chromedriver_path)
-go_to_page(driver, startpage)
-login(cred.username_fb, cred.password_fb, driver, pyautogui)
+    df_source, col_list, comp_header, comp_header2, dt, dt_str = settings(source_file)
+
+    # start crawling the posts
+    all_data = []
+    driver = start_browser(webdriver, Service, chromedriver_path)
+    go_to_page(driver, startpage)
+    login(cred.username_fb, cred.password_fb, driver, pyautogui)
 
 # Loop
 for id, row in df_source.iterrows():
@@ -389,24 +398,25 @@ for id, row in df_source.iterrows():
         datelist = scroll_down(datelist, lower_dt, current_dt)
     data_per_company = []
     soup = BeautifulSoup(driver.page_source, 'html.parser')
-    posts = soup.find_all('div', class_='x1n2onr6 x1ja2u2z')
-    current_dt, datelist = get_oldest_date()
+    # Find all posts with the driver
+    # posts = driver.find_elements(By.XPATH, '//div[@role="article" and not(contains(@aria-label, "Kommentar"))]')
+#    posts = soup.find_all('div', class_='x1n2onr6 x1ja2u2z')
+    posts = soup.find_all('div', {'role': 'article', 'class': 'x1a2a7pz',
+                                  'aria-label': lambda x: x is None or 'Kommentar' not in x})
     count_p = 0
     for id_p, p in enumerate(posts):
+        break
         rawtext = get_visible_text(Comment, p)
-        if len(rawtext) <= 100 or not p_name[:4] in rawtext:
+        if len(rawtext) <= 100 or not p_name[:4].lower() in rawtext.lower():
             continue
         if 'Reels' in rawtext:
             p_type = 'reel'
-            video = 1
-            image = 0
+            video, image = 1,0
             datelist, post_date, likes, comments, shares, link, p_text = scrape_reel(datelist, rawtext, p)
         else:
             p_type = 'post'
-            try:
-                likes, comments, shares, image, video, link, p_text = scrape_post(rawtext, p_name, p)
-            except:
-                likes, comments, shares, image, video, link, p_text = ['' for _ in range(7)]
+            likes, comments, shares, image, video, link, p_text = scrape_post(rawtext, p_name, p)
+
         if id_p < len(datelist) or post_date == '':
             post_date = datelist[id_p]
         if post_date:
@@ -531,3 +541,13 @@ driver.quit()
 time.sleep(4)
 x,y = pyautogui.position()
 print(str(x)+ ','+ str(y))
+
+
+card_deck = [4, 11, 8, 5, 13, 2, 8, 10]
+hand = []
+
+## adds the last element of the card_deck list to the hand list
+## until the values in hand add up to 17 or more
+while sum(hand) < 17:
+    hand.append(card_deck.pop())
+    print(hand)
