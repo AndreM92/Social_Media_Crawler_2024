@@ -251,7 +251,7 @@ def inspect_page(id, row, lower_dt):
     p_name = row['Profilname']
     if len(url) < 10 or len(str(row['last post'])) <= 4 or 'Keine Beiträge' in str(row['last post']):
         print([id, p_name, '', dt_str] + [url])
-        return None
+        return None, None, None
     driver.get(url)
     time.sleep(1)
     driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
@@ -259,7 +259,7 @@ def inspect_page(id, row, lower_dt):
     current_dt, datelist = get_oldest_date()
     if not current_dt:
         print([id, p_name,'',dt_str] + ['no posts'])
-        return None
+        return None, None, None
     if current_dt > lower_dt:
         datelist = scroll_down(datelist, lower_dt, current_dt)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -306,11 +306,11 @@ def scroll_down(datelist, lower_dt, current_dt):
     return datelist
 
 
-def scrape_reel(datelist, rawtext, p):
+def scrape_reel(id_p, datelist, rawtext, p):
     post_date, likes, comments, shares, link = ['' for _ in range(5)]
     p_text = rawtext.replace('Facebook', '').strip()
     reactions = p_text.rsplit('·', 1)[-1].strip()
-    react_la = [str(e).strip() for e in reactions.split(' ') if len(str(e).strip()) >= 1]
+    react_la = [str(e).strip() for e in reactions.split(' ') if 5 >= len(str(e).strip()) >= 1]
     react_l = [extract_big_number(e) for e in react_la if str(e)[0].isdigit()]
     if len(react_l) == 3:
         likes, comments, shares = react_l
@@ -319,7 +319,6 @@ def scrape_reel(datelist, rawtext, p):
     elif len(react_l) == 1:
         likes = react_l[0]
     reel_date = p_text.rsplit('·', 2)[-2].strip()
-    print(reel_date)
     if reel_date[0].isdigit():
         post_dt = dateFormat(reel_date)
         post_date = post_dt.strftime("%d.%m.%Y")
@@ -412,10 +411,15 @@ def get_reactions(p_text1, reactions, comments):
 def post_scraper(p_name, posts, datelist, upper_dt, lower_dt):
     data_per_company = []
     count_p = 0
-    if len(posts) > len(datelist):
+    reels = False
+    for p in posts[:5]:
+        if 'Reels' in str(get_visible_text(Comment, p)):
+            reels = True
+    if len(posts) > len(datelist) and not reels:
         datelist = [datetime.now().strftime('%d.%m.%Y')] + datelist
 
     for id_p, p in enumerate(posts):
+        post_date = ''
         rawtext = str(get_visible_text(Comment, p))
         if len(rawtext) <= 100 or not p_name[:4].lower() in rawtext.lower():
             continue
@@ -423,7 +427,7 @@ def post_scraper(p_name, posts, datelist, upper_dt, lower_dt):
         if 'Reels' in rawtext:
             p_type = 'reel'
             video, image = 1, 0
-            datelist, post_date, likes, comments, shares, link, p_text = scrape_reel(datelist, rawtext, p)
+            datelist, post_date, likes, comments, shares, link, p_text = scrape_reel(id_p, datelist, rawtext, p)
         else:
             p_type = 'post'
             link = get_p_link(p)
@@ -432,7 +436,8 @@ def post_scraper(p_name, posts, datelist, upper_dt, lower_dt):
             likes, comments, shares = get_reactions(p_text1, reactions, comments)
         if id_p >= len(datelist):
             break
-        post_date = datelist[id_p]
+        if not post_date:
+            post_date = datelist[id_p]
         try:
             post_dt = datetime.strptime(post_date, "%d.%m.%Y")
             if post_dt >= upper_dt:
@@ -443,7 +448,6 @@ def post_scraper(p_name, posts, datelist, upper_dt, lower_dt):
             pass
         count_p += 1
         scraped_data = [post_date, likes, comments, shares, image, video, p_type, link, p_text]
-        print(scraped_data)
         full_row = [id, p_name, count_p, dt_str] + scraped_data
         data_per_company.append(full_row)
     return data_per_company
@@ -463,7 +467,13 @@ if __name__ == '__main__':
 
     # Iterate over the companies
     for id, row in df_source.iterrows():
+        if id < 5:
+            continue
+        if id == 9:
+            break
         p_name, posts, datelist = inspect_page(id, row, lower_dt)
+        if not posts:
+            continue
         # Post_scraper scrapes the data of every post
         data_per_company = post_scraper(p_name, posts, datelist, upper_dt, lower_dt)
         all_data += data_per_company

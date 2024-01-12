@@ -248,7 +248,8 @@ def dateFormat(d):
                 'august': 8, 'september': 9, 'oktober': 10, 'november': 11, 'dezember': 12}
     day = datetime.now().day
     month = datetime.now().month
-    year = datetime.now().year
+    # Pay attention to the year
+    year = datetime.now().year -1
     rest = ''
     if d[-1] == '.':
         d = d[:-1].strip()
