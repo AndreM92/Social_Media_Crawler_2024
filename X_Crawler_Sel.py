@@ -27,6 +27,7 @@ import os
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 startpage = 'https://twitter.com/i/flow/login'
 network = 'X'
+dt_str_now = None
 ########################################################################################################################
 
 def settings(source_file):
@@ -121,6 +122,7 @@ def scrapeProfile(driver, url):
             e = e.lower()
             if 'followers' in e and not 'followed' in e and follower == '':
                 follower = dlist[pos - 1]
+                print(follower)
                 follower = extract_big_number(follower)
             elif 'following' in e and not 'followed' in e and following == '':
                 following = dlist[pos - 1]
@@ -148,7 +150,7 @@ if __name__ == '__main__':
     # Settings for profile scraping
     newpath = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
     os.chdir(newpath)
-    source_file = "Liste_Nahrungsergänzungsmittel_2024_20240106.xlsx"
+    source_file = "Liste_Nahrungsergänzungsmittel_2024_20240108.xlsx"
     df_source, col_list, comp_header, dt, dt_str = settings(source_file)
 
     # Start crawling
@@ -157,6 +159,7 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
     login(driver, startpage, cred.username_tw, cred.password_tw)
 
+    # Iterating over the companies
     for id, row in df_source.iterrows():
         if id <= -1:
             continue
@@ -169,7 +172,26 @@ if __name__ == '__main__':
             continue
 
         datarow = scrapeProfile(driver, url)
+        full_row = [id, company, dt_str] + datarow
+        data.append(full_row)
         print(datarow)
-        break
+
+        if id >= 7:
+            break
+
+
+    # DataFrame
+    header = ['ID', 'Anbieter', 'Erh.Datum', 'Profilname', 'follower', 'following', 'joined', 'last post', 'url',
+              'description']
+    dfProfiles = pd.DataFrame(data, columns=header)
+    dfProfiles.set_index('ID')
+
+    # Export to Excel
+    #    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+    dt_str_now = datetime.now().strftime("%Y-%m-%d")
+    recent_filename = 'Profile_Twitter_' + dt_str_now + '.xlsx'
+    with pd.ExcelWriter(recent_filename) as writer:
+        dfProfiles.to_excel(writer, sheet_name='Profildaten')
+
 
     driver.quit()

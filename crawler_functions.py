@@ -113,9 +113,15 @@ def extract_big_number(element):
                 element = str(int(float(element.replace("Mio", " ").replace("M", " ").split(' ')[0].replace(",", ".").strip()) * 1000000))
             except:
                 return element
-        elif 'Tsd.' in element or str(element)[-1] == 'K':
+        elif 'Tsd.' in element:
+            element = '1125Tsd.'
             try:
                 element = float(str(re.sub(r'[^0-9,]', '', element)).strip().replace(',','.')) * 1000
+            except:
+                return element
+        elif str(element)[-1] == 'K':
+            try:
+                element = float(str(re.sub(r'[^0-9.]', '', element)).strip()) * 1000
             except:
                 return element
         elif ',' in element:
@@ -248,8 +254,7 @@ def dateFormat(d):
                 'august': 8, 'september': 9, 'oktober': 10, 'november': 11, 'dezember': 12}
     day = datetime.now().day
     month = datetime.now().month
-    # Pay attention to the year
-    year = datetime.now().year -1
+    year = datetime.now().year
     rest = ''
     if d[-1] == '.':
         d = d[:-1].strip()
@@ -265,6 +270,9 @@ def dateFormat(d):
                 month = new_date.month
                 year = new_date.year
         else:
+            # Pay attention to the year
+            if datetime.now().day - datetime.strptime('31.12.2023', '%d.%m.%Y').day <= 31:
+                year = datetime.now().year - 1
             date_ls = d.split('.')
             if len(date_ls) == 2:
                 day, rest = date_ls
