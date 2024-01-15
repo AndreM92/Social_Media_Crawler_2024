@@ -231,155 +231,139 @@ def inspect_page(id, row, lower_dt):
         print([id, p_name, '', '', url])
         return ['' for _ in range(4)]
     driver.get(url)
-    time.sleep(1)
-    driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
+    time.sleep(3)
+    driver.execute_script("window.scrollBy(0,1500)", "")
     time.sleep(2)
     last_post, current_dt, posts = get_last_date()
     if not current_dt:
-        return None, None, None
+        return ['' for _ in range(4)]
     if current_dt < lower_dt:
         posts = ''
     url = driver.current_url
     return p_name, url, posts, last_post
 
+# Scrape the post interactions
+def get_reactions(p):
+    react_elements = p.find_all('div', {'aria-label': True})
+    aria_content = [str(e['aria-label']).lower() for e in react_elements]
+    for a in aria_content:
+        if ',' in a:
+            aria_content += a.split(',')
+    react_list = [a for a in aria_content if 25 > len(a) > 4]
+    likes, comments, shares, views = [0 for _ in range(4)]
+    for a in react_list:
+        if 'like' in a and likes == 0:
+            likes = extract_big_number(a)
+        elif 'repl' in a and comments == 0:
+            comments = extract_big_number(a)
+        elif 'repost' in a and shares == 0:
+            shares = extract_big_number(a)
+        elif 'view' in a and views == 0:
+            views = extract_big_number(a)
+    return likes, comments, shares, views
 
-# The scrapePost function scrapes the details of every post
-def scrapePost(p, p_name):
-    date_elem, tweet_type, likes, comments, retweets, views, image, video, link, content = ['' for i in range(10)]
-    try:
-        date_elem = p.find('time')['datetime']
-        date = date_elem.split('T')[0].strip()
-        date_dt = datetime.strptime(date, "%Y-%m-%d")
-    except:
-        date = date_elem
-        date_dt = datetime.strptime("2023-12-12", "%Y-%m-%d")
-    if not type(date_dt).__name__ == 'datetime':
-        date_dt = datetime.strptime("2023-12-12", "%Y-%m-%d")
-    else:
-        date = date_dt.strftime('%d.%m.%Y')
-    full_text = extract_text(p)
-    if 'retweet' in full_text.lower() or 'repost' in full_text:
-        tweet_type = 'retweet'
-    else:
-        tweet_type = 'tweet'
-    content_elem = p.find_all('span')
-    content_all = [extract_text(t) for t in content_elem]
-    content = ' '.join([e for e in content_all if (e.strip() != p_name and e.strip() != '@' + p_name) and len(e) >= 3])
-    if len(str(content)) <= 4:
-        content = full_text
-    interact_elems = p.find_all('div', class_='css-1dbjc4n r-13awgt0 r-18u37iz r-1h0z5md')
-    interactions = [extract_number(e) for e in interact_elems]
-    if len(interactions) == 4:
-        comments, retweets, likes, views = interactions
-    elif len(interactions) == 0:
-        interact_bar = p.find('div', {'role': 'group'})
-        if interact_bar:
-            interactions = extract_text(interact_bar.get('aria-label'))
-            if interactions:
-                interact_ls = interactions.split()
-                for pos, e in enumerate(interact_ls):
-                    if 'like' in e:
-                        likes = extract_big_number(interact_ls[pos-1])
-                    elif 'repost' in e:
-                        retweets = extract_big_number(interact_ls[pos - 1])
-                    elif 'reply' in e or 'replie' in e:
-                        comments = extract_big_number(interact_ls[pos - 1])
-                    elif 'views' in e:
-                        views = extract_big_number(interact_ls[pos - 1])
+def get_post_elements(p, full_text, tweet_type):
+    image, video = 0, 0
     imagelinks_all = [p['src'] for p in p.find_all('img', src=True)]
     imagelinks = [p for p in imagelinks_all if not 'profile_image' in str(p) and not 'hashtag' in str(p) and not 'emoji' in str(p)]
     if len(imagelinks) >= 1:
-        image = 1
-        video = 0
+        image, video = 1,0
     if p.find('video', src=True) or p.find('div', {'aria-label': 'Play'}) or 'livestream' in full_text:
-        video = 1
-        image = 0
+        video, image = 1,0
     if p.find('div', {'data-testid': 'cardPoll'}):
         tweet_type = 'poll'
-        image = 0
-        video = 0
+    return image, video, tweet_type
+
+def get_link(p):
     links_raw = [l['href'] for l in p.find_all('a', href=True)]
     links = ['https://twitter.com' + l if not 'http' in l else l for l in links_raw]
     links_f = [l for l in links if 'status' in l]
     if len(links_f) >= 1:
-        link = links_f[0]
-    if len(links) >= 2:
-        links = str(list(set(links)))
-    if len(links) == 1:
-        links = links[0]
-    else:
-        links = ''
-    ls = re.sub(r'[.-_]', '', link.lower()).strip()
+        return links_f[0]
+    if len(links) >= 1:
+        return links[0]
+    return ''
+
+# post_scraper function scrapes the details of every post
+def post_scraper(p, p_name, lower_dt):
+#    p = posts[0]
+    full_text = get_visible_text(Comment, p)
+    try:
+        date_elem = p.find('time')['datetime']
+        date = date_elem.split('T')[0].strip()
+        date_dt = datetime.strptime(date, "%Y-%m-%d")
+        date = date_dt.strftime("%d.%m.%Y")
+        if date_dt >= upper_dt or date_dt < lower_dt:
+            return None, date_dt
+    except:
+        return None, None
+    tweet_type = 'tweet'
+    if 'retweet' in full_text.lower() or 'repost' in full_text:
+        tweet_type = 'retweet'
     ns = re.sub(r'[.-_]', '', p_name.lower()).strip()
-    if not (ns[:4] in ls or ns[-4:] in ls) and not tweet_type == 'retweet':
+    if not ns.lower() in full_text[:50].lower():
         tweet_type = 'ad'
+        p_name = full_text[:50].split('·')[0]
+    likes, comments, shares, views = get_reactions(p)
+    image, video, tweet_type = get_post_elements(p, full_text, tweet_type)
+    link = get_link(p)
+    content_elem = p.find_all('span')
+    content_all = [extract_text(t) for t in content_elem]
+    content = ' '.join(
+        [e for e in content_all if (e.strip() != p_name and e.strip() != '@' + p_name) and len(e) >= 3])
+    if len(str(content)) <= 4:
+        content = full_text
+    post_data = [date, tweet_type, likes, comments, shares, views, image, video, link, content]
+    return post_data, date_dt
 
-    data_single_p = [date, tweet_type, likes, comments, retweets, views, image, video, link, links, content]
-    for pos, e in enumerate(data_single_p):
-        if not e:
-            data_single_p[pos] = ''
-
-    return data_single_p, link, date_dt
-
-
-# Main function for the posts
-def main(id, p_name, dt_str, upper_dt, lower_dt, url):
-    date, tweet_type, likes, comments, retweets, views, image, video, link, links, content = ['' for i in range(11)]
-    driver.get(url)
+def scroller(scrolls, height2):
+    height1 = height2
+    height2 = driver.execute_script("return document.documentElement.scrollHeight")
+    driver.execute_script("window.scrollBy(0,2000)", "")
+    scrolls += 1
     time.sleep(3)
-    soup = BeautifulSoup(driver.page_source, 'lxml')
-    pagetext = extract_text(get_visible_text(Comment, soup))
-    if '@' in pagetext:
-        pagetext = pagetext.split('@',1)[1]
+    if scrolls >= 50:
+        time.sleep(1)
+    height3 = driver.execute_script("return document.documentElement.scrollHeight")
+    if height1 == height3 or scrolls == 300:
+        return False, scrolls
+    return True, scrolls
 
-    posts = soup.find_all('article')
-    if posts:
-        last_date_elem = [p.find('time')['datetime'] for p in posts if p.find('time') and 'datetime' in p.find('time').attrs][-1]
-        last_date = datetime.strptime(last_date_elem.split('T')[0].strip(),'%Y-%m-%d')
-    else:
-        no_posts_row = [id, p_name, '0', dt_str,*['' for i in range(9)],url,pagetext]
-        return no_posts_row
-
-    counter = 1
-    ad_count = 1
-    scrolls = 0
-    p_linklist = []
+# Crawler function for the whole profile (scrolls down and scrapes the post data)
+def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
+    crawl = True
     distinct_posts = []
-    while True:
- #       scrheight = driver.execute_script("return document.documentElement.scrollHeight")
-        if scrolls == 0:
-            driver.execute_script("window.scrollBy(0,1500)", "")
-        else:
-            driver.execute_script("window.scrollBy(0,2000)", "")
-        scrolls +=1
-        time.sleep(3)
-        if scrolls >= 50:
-            time.sleep(1)
+    distinct_linklist = []
+    id_p = 0
+    id_ad = 0
+    scrolls = 0
+
+    while crawl:
         soup = BeautifulSoup(driver.page_source, 'lxml')
         posts = soup.find_all('article')
         if not posts:
-            break
+            crawl = False
+        height2 = False
         for p in posts:
-            data_single_p, p_link, current_dt = scrapePost(p, p_name)
-            if p_link in p_linklist or current_dt >= upper_dt:
+            post_data, date_dt = post_scraper(p, p_name, lower_dt)
+            if not date_dt or date_dt < lower_dt:
+                crawl = False
+                break
+            if not post_data or date_dt >= upper_dt:
                 continue
-            if data_single_p[1] == 'ad':
-                try:
-                    alt_name = data_single_p[-1].split()[0]
-                except:
-                    alt_name = ''
-                full_row = [id, alt_name, ad_count, dt_str] + data_single_p
-                distinct_posts.append(full_row)
-                p_linklist.append(p_link)
-                ad_count += 1
+            link = post_data[-2]
+            if link in distinct_linklist:
+                continue
+            if post_data[1] == 'ad':
+                full_row = [id, p_name, id_ad, dt_str] + post_data
+                id_ad += 1
             else:
-                full_row = [id, p_name, counter, dt_str] + data_single_p
-                distinct_posts.append(full_row)
-                p_linklist.append(p_link)
-                counter += 1
-        if current_dt <= lower_dt or scrolls == 280:
-            break
-
+                full_row = [id, p_name, id_p, dt_str] + post_data
+                id_p += 1
+            print(full_row)
+            distinct_linklist.append(link)
+            distinct_posts.append(full_row)
+        crawl, scrolls = scroller(scrolls, height2)
     return distinct_posts
 
 ########################################################################################################################
@@ -395,23 +379,23 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
     login(driver, startpage, cred.username_tw, cred.password_tw)
 
-
-# Iterate over the companies
-for id, row in df_source.iterrows():
-    p_name, url, posts, last_post = inspect_page(id, row, lower_dt)
-    if not posts:
-        continue
-    data_per_company = main(id, p_name, dt_str, upper_dt, lower_dt, url)
-    all_data += data_per_company
-    print(data_per_company)
+    # Iterate over the companies
+    for id, row in df_source.iterrows():
+        p_name, url, posts, last_post = inspect_page(id, row, lower_dt)
+        if not posts:
+            continue
+        data_per_company = page_crawler(id, p_name, dt_str, upper_dt, lower_dt)
+        all_data += data_per_company
 
 
 # Create a DataFrame with all posts
-header1 = ['ID_A', 'Profilname', 'ID_P', 'Datum_Erhebung', 'Datum_Beitrag']
-header2 = ['Beitragsart', 'Likes', 'Kommentare', 'Retweets', 'Views', 'Bild', 'Video', 'Link', 'Links', 'Content']
+header1 = ['ID_A', 'Profilname', 'ID_P', 'Erhebung', 'Beitrag']
+header2 = ['Beitragsart', 'Likes', 'Kommentare', 'Retweets', 'Views', 'Bild', 'Video', 'Link', 'Content']
 dfPosts = pd.DataFrame(all_data,columns=header1+header2)
 
 # Export dfPosts to Excel (with the current time)
-#dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-file_name = 'Beiträge_Twitter2' + dt_str + '.xlsx'
+dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+file_name = 'Beiträge_Twitter_' + dt_str_now + '.xlsx'
 dfPosts.to_excel(file_name)
+
+driver.quit()
