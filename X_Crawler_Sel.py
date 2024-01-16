@@ -245,11 +245,11 @@ def inspect_page(id, row, lower_dt):
 # Scrape the post interactions
 def get_reactions(p):
     react_elements = p.find_all('div', {'aria-label': True})
-    aria_content = [str(e['aria-label']).lower() for e in react_elements]
+    aria_content = [str(e['aria-label']).lower().strip() for e in react_elements]
     for a in aria_content:
         if ',' in a:
             aria_content += a.split(',')
-    react_list = [a for a in aria_content if 25 > len(a) > 4]
+    react_list = [a for a in aria_content if (20 > len(a) > 4 and not ('like' and 'view' in a))]
     likes, comments, shares, views = [0 for _ in range(4)]
     for a in react_list:
         if 'like' in a and likes == 0:
@@ -286,7 +286,6 @@ def get_link(p):
 
 # post_scraper function scrapes the details of every post
 def post_scraper(p, p_name, lower_dt):
-#    p = posts[0]
     full_text = get_visible_text(Comment, p)
     try:
         date_elem = p.find('time')['datetime']
@@ -326,8 +325,8 @@ def scroller(scrolls, height2):
         time.sleep(1)
     height3 = driver.execute_script("return document.documentElement.scrollHeight")
     if height1 == height3 or scrolls == 300:
-        return False, scrolls
-    return True, scrolls
+        return True, scrolls, height2
+    return False, scrolls, height2
 
 # Crawler function for the whole profile (scrolls down and scrapes the post data)
 def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
@@ -337,13 +336,13 @@ def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
     id_p = 0
     id_ad = 0
     scrolls = 0
+    height2 = False
 
     while crawl:
         soup = BeautifulSoup(driver.page_source, 'lxml')
         posts = soup.find_all('article')
         if not posts:
             crawl = False
-        height2 = False
         for p in posts:
             post_data, date_dt = post_scraper(p, p_name, lower_dt)
             if not date_dt or date_dt < lower_dt:
@@ -363,7 +362,10 @@ def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
             print(full_row)
             distinct_linklist.append(link)
             distinct_posts.append(full_row)
-        crawl, scrolls = scroller(scrolls, height2)
+        stopped, scrolls, height2 = scroller(scrolls, height2)
+        scrolls += 1
+        if scrolls >= 15 or stopped:
+            break
     return distinct_posts
 
 ########################################################################################################################
@@ -387,15 +389,14 @@ if __name__ == '__main__':
         data_per_company = page_crawler(id, p_name, dt_str, upper_dt, lower_dt)
         all_data += data_per_company
 
+    # Create a DataFrame with all posts
+    header1 = ['ID_A', 'Profilname', 'ID_P', 'Erhebung', 'Datum']
+    header2 = ['Beitragsart', 'Likes', 'Kommentare', 'Retweets', 'Aufrufe', 'Bild', 'Video', 'Link', 'Content']
+    dfPosts = pd.DataFrame(all_data,columns=header1+header2)
 
-# Create a DataFrame with all posts
-header1 = ['ID_A', 'Profilname', 'ID_P', 'Erhebung', 'Beitrag']
-header2 = ['Beitragsart', 'Likes', 'Kommentare', 'Retweets', 'Views', 'Bild', 'Video', 'Link', 'Content']
-dfPosts = pd.DataFrame(all_data,columns=header1+header2)
+    # Export dfPosts to Excel (with the current time)
+    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+    file_name = 'Beiträge_Twitter_' + dt_str_now + '.xlsx'
+    dfPosts.to_excel(file_name)
 
-# Export dfPosts to Excel (with the current time)
-dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-file_name = 'Beiträge_Twitter_' + dt_str_now + '.xlsx'
-dfPosts.to_excel(file_name)
-
-driver.quit()
+    driver.quit()
