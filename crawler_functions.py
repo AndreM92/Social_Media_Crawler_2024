@@ -99,22 +99,23 @@ def extract_number(element):
         finally:
             return element
 
-def extract_big_number(element):
+def extract_every_number(element):
     if element:
         if not isinstance(element,(str,int,float)):
             element = element.text.strip()
+        if str(element) == '0':
+            return 0
         if not element:
             return element
-        if len(element) == 0:
-            return element
-        element = str(element).replace('\n', ' ').replace('\xa0', ' ').replace('!', '').replace('#', '').replace('\s+',' ').strip()
+        element = str(element).replace('\u200b', '').replace('\xa0', ' ').replace('\\xa0', ' ').replace('\n', ' ')
+        element = element.replace('!', '').replace('#', '').replace('+', ' ').replace('-', ' ').replace('%', ' ')
+        element = re.sub('\s+', ' ', element).strip()
         if 'M' in element:
             try:
                 element = str(int(float(element.replace("Mio", " ").replace("M", " ").split(' ')[0].replace(",", ".").strip()) * 1000000))
             except:
                 return element
         elif 'Tsd.' in element:
-            element = '1125Tsd.'
             try:
                 element = float(str(re.sub(r'[^0-9,]', '', element)).strip().replace(',','.')) * 1000
             except:
@@ -124,26 +125,37 @@ def extract_big_number(element):
                 element = float(str(re.sub(r'[^0-9.]', '', element)).strip()) * 1000
             except:
                 return element
-        elif ',' in element:
-            if len(element.split(',')[1]) >= 3:
-                element = element.replace(',','')
         else:
-            element = element.split(' ')[0].replace('.','').replace(',','.').strip()
-        if '.' in str(element):
-            if str(element)[-2:] != '.0':
-                try:
-                    element = float(element)
-                    return element
-                except:
-                    pass
+            element = str(re.sub(r'[^0-9.,]', '', element)).strip()
+        element = str(element)
+        if element[-2:] == '.0' or element[-2:] == ',0':
+            element = element[:-2]
+            try:
+                element = int(element)
+            finally:
+                return element
+        if '.' in element and ',' in element:
+            if ',' in element.split('.')[-1]:
+                element = element.replace('.', '').replace(',', '.')
             else:
-                element = str(element).split('.')[0]
-        element = re.sub(r'[^0-9]', '', element)
+                element = element.replace(',', '')
+            try:
+                element = float(element)
+            finally:
+                return element
+        if ',' in element:
+            if element[-1] == '0':
+                element = element.replace(',', '')
+            element = element.replace(',','.')
+        if '.' in element:
+            try:
+                element = float(element)
+            finally:
+                return element
         try:
             element = int(element)
-        except:
-            pass
-        return element
+        finally:
+            return element
 
 ########################################################################################################################
 # Filter functions
