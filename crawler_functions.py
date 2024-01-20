@@ -99,12 +99,14 @@ def extract_number(element):
         finally:
             return element
 
-def extract_every_number(element):
+# If you are only dealing with float numbers, set float_number to True:
+#result = extract_every_number(element, float_number = True)
+def extract_every_number(element, float_number = False):
     if element:
-        if not isinstance(element,(str,int,float)):
+        if isinstance(element,(int,float)):
+            return element
+        if not isinstance(element, str):
             element = element.text.strip()
-        if str(element) == '0':
-            return 0
         if not element:
             return element
         element = str(element).replace('\u200b', '').replace('\xa0', ' ').replace('\\xa0', ' ').replace('\n', ' ')
@@ -125,9 +127,7 @@ def extract_every_number(element):
                 element = float(str(re.sub(r'[^0-9.]', '', element)).strip()) * 1000
             except:
                 return element
-        else:
-            element = str(re.sub(r'[^0-9.,]', '', element)).strip()
-        element = str(element)
+        element = str(re.sub(r'[^0-9.,]', '', element)).strip()
         if element[-2:] == '.0' or element[-2:] == ',0':
             element = element[:-2]
             try:
@@ -144,10 +144,12 @@ def extract_every_number(element):
             finally:
                 return element
         if ',' in element:
-            if element[-1] == '0':
+            if element[-1] == '0' or len(element.split(',')[1]) == 3:
                 element = element.replace(',', '')
             element = element.replace(',','.')
         if '.' in element:
+            if len(element.split('.')[1]) == 3 and not float_number:
+                return int(element.replace('.','').strip())
             try:
                 element = float(element)
             finally:
@@ -167,7 +169,8 @@ def get_company_keywords(company, row, col_list):
     comp_l4 = company.split()
     comp_l = list(set(comp_l1 + comp_l2 + comp_l3 + comp_l4))
     comp_keywords_f = [str(e).lower() for e in comp_l if len(str(e).lower()) >= 3]
-    comp_keywords = [e for e in comp_keywords_f if not '.mbh' in e and not 'gmbh' in e]
+    appendix = ['gmbh', 'mbh', 'inc', 'limited', 'ltd', 'llc', 'com', 'co.', 'lda', 'the']
+    comp_keywords = [e for e in comp_keywords_f if not any(a in e for a in appendix)] + [company]
     sm_names = ['Facebook', 'Instagram']
     for n in sm_names:
         if n in col_list:
