@@ -1,3 +1,6 @@
+import numpy as np
+import pandas as pd
+
 from pytesseract import pytesseract
 from PIL import Image
 
@@ -11,6 +14,21 @@ import re
 # Say Hello
 def printhello(name):
     print(f'Hello {name}')
+
+# General Settings
+def settings(source_file):
+    df_source = pd.read_excel(source_file)
+    df_source.set_index('ID',inplace=True)
+    col_list = list(df_source.columns)
+    comp_header, name_header = None, None
+    for e in col_list:
+        if not comp_header and ('Firma' in e or 'Anbieter' in e or 'Marke' in e):
+            comp_header = e
+        if not name_header and 'Name' in e:
+            name_header = e
+    dt = datetime.now()
+    dt_str = dt.strftime("%d.%m.%Y")
+    return df_source, col_list, comp_header, name_header, dt, dt_str
 
 # Start the driver and open a new page
 def start_browser(webdriver, Service, chromedriver_path):
@@ -122,12 +140,12 @@ def extract_every_number(element, float_number = False):
                 element = float(str(re.sub(r'[^0-9,]', '', element)).strip().replace(',','.')) * 1000
             except:
                 return element
-        elif str(element)[-1] == 'K':
+        elif element[-1] == 'K':
             try:
                 element = float(str(re.sub(r'[^0-9.]', '', element)).strip()) * 1000
             except:
                 return element
-        element = str(re.sub(r'[^0-9.,]', '', element)).strip()
+        element = re.sub(r'[^0-9.,]', '', str(element)).strip()
         if element[-2:] == '.0' or element[-2:] == ',0':
             element = element[:-2]
             try:
@@ -193,7 +211,7 @@ def sm_filter(linklist):
     platforms = ['facebook.com', 'instagram.com', 'twitter.com', 'youtube.com', 'tiktok.com', 'linkedin.com']
     sm_links_all = [l for l in linklist if any(p in l for p in platforms)]
     not_profile = ['/post', 'hashtag', 'sharer','/status', 'photo/', 'photos', 'watch?', '/video/', 'discover', '.help',
-                    'reels', 'story', 'explore', 'playlist', 'sharer', 'policy', 'privacy', 'instagram.com/p/',
+                    'reels', 'story', 'explore', 'playlist', '/share', 'policy', 'privacy', 'instagram.com/p/',
                    '/tag/','/embed/']
     sm_links = [l for l in sm_links_all if not any(e in l for e in not_profile)]
     sm_links = list(set(sm_links))
