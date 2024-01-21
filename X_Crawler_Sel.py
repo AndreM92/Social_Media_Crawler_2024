@@ -1,13 +1,9 @@
-from crawler_functions import *
-import credentials_file as cred
-
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 import selenium.webdriver.support.expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-
 import pyautogui
 
 import requests
@@ -22,27 +18,17 @@ import re
 from datetime import datetime, timedelta
 
 import os
-
-# General Settings
-newpath = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
-os.chdir(newpath)
+# Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
+path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Scraper\Social_Media_Crawler_2023"
+file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
+source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
+branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
+                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 startpage = 'https://twitter.com/i/flow/login'
 network = 'X'
 dt_str_now = None
 ########################################################################################################################
-
-def settings(source_file):
-    df_source = pd.read_excel(source_file)
-    df_source.set_index('ID', inplace=True)
-    col_list = list(df_source.columns)
-    if 'Anbieter' in col_list:
-        comp_header = 'Anbieter'
-    elif 'Firma' in col_list:
-        comp_header = 'Firma'
-    dt = datetime.now()
-    dt_str = dt.strftime("%d.%m.%Y")
-    return df_source, col_list, comp_header, dt, dt_str
 
 # Login function
 def login(driver, startpage, email, password):
@@ -140,23 +126,26 @@ def scrapeProfile(driver, url):
         full_desc = ' '.join([extract_text(e) for e in full_desc_elem]).replace('Following', 'Following ')
     else:
         full_desc = extract_text(full_desc_elem)
+    p_name = str(extract_text(soup.find('div', {'data-testid': 'UserName'})))
     if '@' in full_desc:
-        p_name, full_desc = full_desc.split('@',1)[1].split(' ',1)
-    if len(p_name) <= 2 or len(p_name) >= 30:
-        p_name = extract_text(soup.find('div', {'data-testid': 'UserName'}))
-        if '@' in p_name:
-            p_name = p_name.split('@')[1]
+        if len(p_name) <= 4 or len(p_name) >= 30:
+            p_name, full_desc = full_desc.split('@', 1)[1].split(' ', 1)
+        else:
+            full_desc = full_desc.split('@', 1)[1].strip()
+    if '@' in p_name:
+        p_name = p_name.split('@')[1]
+    if len(str(full_desc)) >= 30 and p_name in full_desc[:30]:
+        full_desc = full_desc.split(p_name,1)[1].strip()
     if len(full_desc) >= 10:
         dlist = full_desc.split()
         for pos, e in enumerate(dlist):
             e = e.lower()
             if 'followers' in e and not 'followed' in e and follower == '':
                 follower = dlist[pos - 1]
-                print(follower)
-                follower = extract_big_number(follower)
+                follower = extract_every_number(follower)
             elif 'following' in e and not 'followed' in e and following == '':
                 following = dlist[pos - 1]
-                following = extract_big_number(following)
+                following = extract_every_number(following)
             elif 'joined' in e:
                 joined = ' '.join(dlist[(pos + 1):(pos + 3)])
     last_post, last_post_dt, posts = get_last_date()
@@ -164,12 +153,14 @@ def scrapeProfile(driver, url):
     return datarow
 ########################################################################################################################
 
+# Profile crawler
 if __name__ == '__main__':
     # Settings for profile scraping
-    newpath = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
-    os.chdir(newpath)
-    source_file = "Liste_Nahrungsergänzungsmittel_2024_20240108.xlsx"
-    df_source, col_list, comp_header, dt, dt_str = settings(source_file)
+    os.chdir(path_to_crawler_functions)
+    from crawler_functions import *
+    import credentials_file as cred
+    os.chdir(file_path)
+    df_source, col_list, comp_header, name_header, dt, dt_str = settings(source_file)
 
     # Start crawling
     data = []
@@ -178,8 +169,10 @@ if __name__ == '__main__':
     login(driver, startpage, cred.username_tw, cred.password_tw)
 
     # Iterating over the companies
+    count = 0  # If id's aren't ordered
     for id, row in df_source.iterrows():
-        if id <= -1:
+        count += 1
+        if count <= 0:  # If you want to skip some rows
             continue
         company = extract_text(row[comp_header])
         comp_keywords = get_company_keywords(company, row, col_list)
@@ -194,23 +187,21 @@ if __name__ == '__main__':
         data.append(full_row)
         print(datarow)
 
-
     # DataFrame
-    header = ['ID', 'Anbieter', 'Erh.Datum', 'Profilname', 'follower', 'following', 'joined', 'last post', 'url',
-              'description']
-    dfProfiles = pd.DataFrame(data, columns=header)
-    dfProfiles.set_index('ID')
+    header = ['ID','company','date','profile_name','follower','following','joined','last_post', 'url','description']
+    df_profiles = pd.DataFrame(data,columns=header)
+    df_profiles.set_index('ID')
 
     # Export to Excel
     #    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
     dt_str_now = datetime.now().strftime("%Y-%m-%d")
     recent_filename = 'Profile_Twitter_' + dt_str_now + '.xlsx'
-    with pd.ExcelWriter(recent_filename) as writer:
-        dfProfiles.to_excel(writer, sheet_name='Profildaten')
+    df_profiles.to_excel(recent_filename)
 
     driver.quit()
-
 ########################################################################################################################
+
+# Post crawler functions
 def post_crawler_settings():
     upper_dt = datetime.strptime('2024-01-01', '%Y-%m-%d')
     lower_dt = upper_dt - timedelta(days=365)
@@ -253,13 +244,13 @@ def get_reactions(p):
     likes, comments, shares, views = [0 for _ in range(4)]
     for a in react_list:
         if 'like' in a and likes == 0:
-            likes = extract_big_number(a)
+            likes = extract_every_number(a)
         elif 'repl' in a and comments == 0:
-            comments = extract_big_number(a)
+            comments = extract_every_number(a)
         elif 'repost' in a and shares == 0:
-            shares = extract_big_number(a)
+            shares = extract_every_number(a)
         elif 'view' in a and views == 0:
-            views = extract_big_number(a)
+            views = extract_every_number(a)
     return likes, comments, shares, views
 
 def get_post_elements(p, full_text, tweet_type):
