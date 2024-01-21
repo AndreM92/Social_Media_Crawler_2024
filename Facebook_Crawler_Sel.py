@@ -1,6 +1,3 @@
-from crawler_functions import *
-import credentials_file as cred
-
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -22,11 +19,13 @@ import re
 from datetime import datetime, timedelta
 
 import os
-
 # Settings
-newpath = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
-os.chdir(newpath)
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
+path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Scraper\Social_Media_Crawler_2023"
+file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
+source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
+branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
+                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 startpage = 'https://www.facebook.com/'
 network = 'Facebook'
 dt_str_now = None
@@ -36,14 +35,15 @@ def settings(source_file):
     df_source = pd.read_excel(source_file)
     df_source.set_index('ID',inplace=True)
     col_list = list(df_source.columns)
-    if 'Anbieter' in col_list:
-        comp_header = 'Anbieter'
-    elif 'Firma' in col_list:
-        comp_header = 'Firma'
-    comp_header2 = 'Name in Studie'
+    comp_header, name_header = None, None
+    for e in col_list:
+        if not comp_header and ('Firma' in e or 'Anbieter' in e or 'Marke' in e):
+            comp_header = e
+        if not name_header and 'Name' in e:
+            name_header = e
     dt = datetime.now()
     dt_str = dt.strftime("%d.%m.%Y")
-    return df_source, col_list, comp_header, comp_header2, dt, dt_str
+    return df_source, col_list, comp_header, name_header, dt, dt_str
 
 # Login function
 def login(useremail, password, driver, pyautogui):
@@ -149,7 +149,6 @@ def scrapeProfile(url):
         time.sleep(1)
 
     last_post = get_last_postdate(p_name)
-
     rawdesc = driver.find_element(By.CLASS_NAME, 'x1yztbdb')
     desc2 = extract_text(rawdesc).replace('Steckbrief ', '')
     stats_elem = soup.find('div',class_='x9f619 x1n2onr6 x1ja2u2z x78zum5 xdt5ytf x2lah0s x193iq5w x1cy8zhl xyamay9')
@@ -158,9 +157,9 @@ def scrapeProfile(url):
         stats_list = str(stats_text).split('•')
         for e in stats_list:
             if "gefällt" in e.lower():
-                pagelikes = extract_big_number(e)
+                pagelikes = extract_every_number(e)
             elif 'follower' in e.lower():
-                follower = extract_big_number(e)
+                follower = extract_every_number(e)
     else:
         print('Other profile type')
         elems = [e for e in soup.find_all('div', class_='x1e56ztr x1xmf6yo')]
@@ -175,21 +174,23 @@ def scrapeProfile(url):
             info = [i.text for i in stats if len(i.text) > 1 and 'datenrichtlinien' not in i.text.lower()]
             for pos, e in enumerate(info):
                 if "gefällt" in e.lower():
-                    pagelikes = extract_big_number(e)
+                    pagelikes = extract_every_number(e)
                 elif 'follower' in e.lower():
-                    follower = extract_big_number(e)
+                    follower = extract_every_number(e)
             desc2 = ' '.join(info).replace('Steckbrief', '').strip()
     if len(desc2) <= 5:
         desc2 = extract_text(pagetext)
     new_url = driver.current_url
     return [p_name, pagelikes, follower, last_post, new_url, desc1, desc2]
-
 ########################################################################################################################
+
 # Profile Crawler
 if __name__ == '__main__':
-    #source_file = r"C:\Users\andre\OneDrive\Desktop\SSM_Energieanbieter\Energieanbieter_Auswahl.xlsx"
-    source_file = 'Liste_Nahrungsergänzungsmittel_2024_20240108.xlsx'
-    df_source, col_list, comp_header, comp_header2, dt, dt_str = settings(source_file)
+    os.chdir(path_to_crawler_functions)
+    from crawler_functions import *
+    import credentials_file as cred
+    os.chdir(file_path)
+    df_source, col_list, comp_header, name_header, dt, dt_str = settings(source_file)
 
     # Open the browser, go to the startpage and login
     data = []
@@ -197,14 +198,18 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
     login(cred.email_fb, cred.password_fb, driver, pyautogui)
 
-    # Loop
+    # Loop through the companies
+    count = 0 #If id's aren't ordered
     for id, row in df_source.iterrows():
-        if id <= -1:
+        count += 1
+        if count <= 0:
             continue
         company = extract_text(row[comp_header])
         comp_keywords = get_company_keywords(company, row, col_list)
-        if comp_header2 in col_list:
-            comp_keywords += [row[comp_header2]]
+        if name_header:
+            name = extract_text(row[name_header])
+            comp_keywords += get_company_keywords(name, row, col_list)
+            company = name
         url = str(row[network])
         if len(url) < 10:
             data.append([id, company, dt_str] + ['' for _ in range(7)])
@@ -213,19 +218,22 @@ if __name__ == '__main__':
         scraped_data = scrapeProfile(url)
         full_row = [id, company, dt_str] + scraped_data
         data.append(full_row)
-        print(full_row[:-1])
+        print(count, full_row[:-2])
 
     # DataFrame
-    header = ['ID','Anbieter','Erhebung','Profilname','likes','follower','last post','url', 'description1','description2']
-    dfProfiles = pd.DataFrame(data,columns=header)
-    dfProfiles.set_index('ID')
+    header = ['ID','company','date','profile_name','likes','follower','last_post','url','desc_alt','description']
+    df_profiles = pd.DataFrame(data,columns=header)
+    df_profiles.set_index('ID')
 
     # Export to Excel
 #    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
     dt_str_now = datetime.now().strftime("%Y-%m-%d")
     recent_filename = 'Profile_Facebook_' + dt_str_now + '.xlsx'
-    with pd.ExcelWriter(recent_filename) as writer:
-        dfProfiles.to_excel(writer, sheet_name='Profildaten')
+    df_profiles.to_excel(recent_filename)
+
+    # If you want to add more sheets
+#    with pd.ExcelWriter(recent_filename) as writer:
+#        dfProfiles.to_excel(writer, sheet_name='Profildaten')
 
     driver.quit()
 
@@ -311,7 +319,7 @@ def scrape_reel(id_p, datelist, rawtext, p):
     p_text = rawtext.replace('Facebook', '').strip()
     reactions = p_text.rsplit('·', 1)[-1].strip()
     react_la = [str(e).strip() for e in reactions.split(' ') if 5 >= len(str(e).strip()) >= 1]
-    react_l = [extract_big_number(e) for e in react_la if str(e)[0].isdigit()]
+    react_l = [extract_every_number(e) for e in react_la if str(e)[0].isdigit()]
     if len(react_l) == 3:
         likes, comments, shares = react_l
     elif len(react_l) == 2:
@@ -323,8 +331,7 @@ def scrape_reel(id_p, datelist, rawtext, p):
         post_dt = dateFormat(reel_date)
         post_date = post_dt.strftime("%d.%m.%Y")
     if not post_dt or not post_date:
-        post_dt = datetime.now().strftime("%d.%m.%Y")
-        post_date = post_dt.strftime("%d.%m.%Y")
+        post_date = datetime.now().strftime("%d.%m.%Y")
     datelist.insert(id_p, post_date)
     p_text = p_text.rsplit('·', 1)[0].strip()
     r_links = [l['href'] for l in p.find_all('a', href=True) if 'reel' in l['href']]
@@ -388,7 +395,7 @@ def get_reactions(p_text1, reactions, comments):
     if not reactions:
         return '', '', ''
     react_ls = [str(e).strip() for e in reactions.split(' ') if len(str(e).strip()) >= 1]
-    react_numbers = [extract_big_number(e) for e in react_ls if str(e)[0].isdigit()]
+    react_numbers = [extract_every_number(e) for e in react_ls if str(e)[0].isdigit()]
     if len(react_numbers) == 0:
         return 0, 0, 0
     if len(react_numbers) >= 2:
@@ -456,7 +463,12 @@ def post_scraper(p_name, posts, datelist, upper_dt, lower_dt):
 # Post Crawler
 if __name__ == '__main__':
     # Settings for the post crawler
+    os.chdir(path_to_crawler_functions)
+    from crawler_functions import *
+    import credentials_file as cred
+    os.chdir(file_path)
     upper_dt, lower_dt, source_file = post_crawler_settings()
+    df_source, col_list, comp_header, comp_header2, dt, dt_str = settings(source_file)
     df_source, col_list, comp_header, comp_header2, dt, dt_str = settings(source_file)
 
     # Driver and Browser setup
@@ -467,10 +479,6 @@ if __name__ == '__main__':
 
     # Iterate over the companies
     for id, row in df_source.iterrows():
-        if id < 5:
-            continue
-        if id == 9:
-            break
         p_name, posts, datelist = inspect_page(id, row, lower_dt)
         if not posts:
             continue
@@ -492,10 +500,10 @@ if __name__ == '__main__':
     except:
         dfPosts.to_csv(file_name + '.csv', index=False)
 
-driver.quit()
+    driver.quit()
 ########################################################################################################################
 ########################################################################################################################
-
+'''
 # Correcting the dates with post links
 fill_data = []
 #source_file = r"C:\Users\andre\OneDrive\Desktop\SSM_Energieanbieter\Beiträge_Facebook_2023-11-26_aktuell.xlsx"
@@ -586,4 +594,5 @@ driver.quit()
 # Pyautogui Investigation process
 time.sleep(4)
 x,y = pyautogui.position()
-print(str(x)+ ','+ str(y))
+print(str(x)+ "," + str(y))
+'''
