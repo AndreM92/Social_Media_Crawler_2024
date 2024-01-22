@@ -1,8 +1,3 @@
-import os
-os.chdir(r'C:\Users\andre\Documents\Python\Web_Scraper\Social_Media_Crawler_2023')
-from crawler_functions import *
-import credentials_file as cred
-
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -23,12 +18,17 @@ import pandas as pd
 import re
 from datetime import datetime, timedelta
 
+import os
 # Settings
-newpath = r"C:\Users\andre\OneDrive\Desktop\SSM_Energieanbieter"
-os.chdir(newpath)
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
+path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Scraper\Social_Media_Crawler_2023"
+file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
+source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
+branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
+                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 startpage = 'https://www.linkedin.com/login/de'
-network = 'LinkedIn'
+platform = 'LinkedIn'
+dt_str_now = None
 ########################################################################################################################
 
 # Login function
@@ -49,7 +49,7 @@ def login(username, password):
     time.sleep(2)
 
 
-def scrapeProfile(company, link, date_str):
+def scrapeProfile(company, link):
     p_name, follower, employees, last_post, desc1, desc2, tagline = ['' for _ in range(7)]
     driver.get(link)
     time.sleep(2)
@@ -63,7 +63,7 @@ def scrapeProfile(company, link, date_str):
     pagetext = get_visible_text(Comment, soup)
     not_used = 'wurde noch nicht in Anspruch genommen'
     if not_used in pagetext:
-        return ['Seite ' + not_used, date_str, follower, employees, last_post, new_url, tagline, desc1, desc2]
+        return ['Seite ' + not_used, follower, employees, last_post, new_url, tagline, desc1, desc2]
 
     headers = driver.find_elements(By.TAG_NAME, 'h1')
     if headers:
@@ -93,7 +93,7 @@ def scrapeProfile(company, link, date_str):
                 follower_elem = str(p_list[idx - 1]).strip()
                 if not follower_elem.isdigit():
                     follower_elem = str(' '.join(p_list[idx - 2: idx])).strip()
-                follower = extract_big_number(follower_elem)
+                follower = extract_every_number(follower_elem)
     driver.get(new_url + 'about/')
     time.sleep(2)
     soup = BeautifulSoup(driver.page_source, 'lxml')
@@ -115,68 +115,67 @@ def scrapeProfile(company, link, date_str):
     posts = soup.find_all('div', class_='ember-view occludable-update')
     if len(posts) == 0 or "Noch keine Beiträge" in pagetext or len(pagetext) < 2200:
         last_post = 'Keine Beiträge'
-        return [p_name, date_str, follower, employees, last_post, new_url, tagline, desc1, desc2]
+        return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
 
     last_date_elem = posts[0].find('div', class_='ml4 mt2 text-body-xsmall t-black--light')
     if not last_date_elem:
         last_date_elem = posts[0].find('div', class_='t-black--light t-14')
+    if not last_date_elem:
+        last_date_elem = posts[0].find('div', class_='update-components-text-view break-words')
     if last_date_elem:
         last_date_str = extract_text(last_date_elem)
+        if '•' in last_date_str:
+            last_date_str = last_date_str.split('•')[1].strip()
         post_date_dt, last_post = get_approx_date(dt, last_date_str)
-    return [p_name, date_str, follower, employees, last_post, new_url, tagline, desc1, desc2]
+    return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
 ########################################################################################################################
 
-# Further Settings
-source_file = "Energieanbieter_Auswahl.xlsx"
-df_source = pd.read_excel(source_file)
-df_source.set_index('ID',inplace=True)
-col_list = list(df_source.columns)
-if 'Anbieter' in col_list:
-    comph_header = 'Anbieter'
-elif 'Firma' in col_list:
-    comp_header = 'Firma'
-comph2 = 'Name in Studie'
-dt = datetime.now()
-date_str = dt.strftime("%d.%m.%Y")
-data = []
+# Profile crawler
+if __name__ == '__main__':
+    # Settings for profile scraping
+    os.chdir(path_to_crawler_functions)
+    from crawler_functions import *
+    import credentials_file as cred
+    os.chdir(file_path)
+    df_source, col_list, comp_header, name_header, dt, dt_str = settings(source_file)
+
+    # Start crawling
+    data = []
+    driver = start_browser(webdriver, Service, chromedriver_path)
+    go_to_page(driver, startpage)
+    login(cred.useremail_li, cred.password_li)
+    # LinkedIn might require you to enter a confirmation code at this point for security reasons.
+
+    # Loop
+    count = 0
+    for id, row in df_source.iterrows():
+        count += 1
+        if count >= 0:   # If you want to skip some rows
+            continue
+        company = extract_text(row[name_header])
+        link = str(row[platform])
+        if len(link) < 10:
+            empty_row = [id, company, dt_str] + ['' for _ in range(8)]
+            data.append(empty_row)
+            print(empty_row)
+            continue
+
+        scraped_row = scrapeProfile(company, link)
+        data.append([id, company, dt_str] + scraped_row)
+        print([id, company, dt_str] + scraped_row)
 
 
-# Start crawling
-driver = start_browser(webdriver, Service, chromedriver_path)
-go_to_page(driver, startpage)
-login(cred.useremail_li, cred.password_li)
-# LinkedIn might require you to enter a confirmation code at this point for security reasons.
+    # Create a DataFrame
+    header = ['ID', 'company', 'date', 'profile_name', 'follower', 'employees', 'last_post', 'link', 'tagline',
+              'description1', 'description2']
+    df_profiles = pd.DataFrame(data, columns=header)
 
+    # Export to Excel
+    dt_str_now = datetime.now().strftime("%Y-%m-%d")
+    recent_filename = 'Profile_' + platform + '_' + dt_str_now + '.xlsx'
+    df_profiles.to_excel(recent_filename)
 
-# Loop
-count = 0
-for id, row in df_source.iterrows():
-    count += 1
-    if count < 5:
-        continue
-    link = str(row[network])
-    if len(link) < 10:
-        print(link)
-        continue
-    break
-
-    company = row['Firma']
-    scraped_row = scrapeProfile(company, link, date_str)
-    data.append([id,company] + scraped_row)
-#    print(scraped_row)
-
-
-# Create a DataFrame
-header = ['ID', 'Anbieter', 'Profilname', 'Datum', 'Follower', 'Beschäftigte', 'Letzter Beitrag', 'Link', 'Tagline',
-          'Beschreibung1', 'Beschreibung2']
-df_profiles = pd.DataFrame(data, columns=header)
-
-
-# Export to Excel
-file_path = 'Profile_' + network + '.xlsx'
-with pd.ExcelWriter(file_path) as writer:
-    df_profiles.to_excel(writer, sheet_name='Profildaten')
-#df_profiles.to_excel(filename_profiles)
+    driver.quit()
 ########################################################################################################################
 
 # Special functions for scraping the Posts
@@ -192,10 +191,10 @@ def scroll_to_bottom():
         new_height = driver.execute_script('return document.body.scrollHeight')
         safety_counter += 1
 ########################################################################################################################
-
+'''
 # Settings for the post crawler
 source_file = "Profildaten_Energieanbieter_1.xlsx"
-df_source = pd.read_excel(source_file, sheet_name=network)
+df_source = pd.read_excel(source_file, sheet_name=platform)
 df_source.set_index('ID',inplace=True)
 dt = datetime.now()
 dt_str = dt.strftime("%d.%m.%Y")
@@ -261,3 +260,4 @@ if driver.current_url == startpage:
     firstname.send_keys(firstname_li)
     lastname.send_keys(lastname_li)
     driver.find_element(By.XPATH, '//button[contains(text(), "Weiter")]').click()
+'''
