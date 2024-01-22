@@ -1,3 +1,11 @@
+import pyautogui
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.wait import WebDriverWait
+import selenium.webdriver.support.expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+
 import numpy as np
 import pandas as pd
 
@@ -36,6 +44,7 @@ def start_browser(webdriver, Service, chromedriver_path):
     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.182 Safari/537.36"
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument(f'user-agent={user_agent}')
+    chrome_options.add_argument("--disable-notifications")
 #    chrome_options.add_argument('--headless')
     service = Service(chromedriver_path)
     # Create a WebDriver instance using the Service and options
@@ -54,6 +63,14 @@ def go_to_page(driver, startpage):
                 c.click()
             except:
                 pass
+    # Not the best solution so far
+    if driver.find_element(By.TAG_NAME, "tiktok-cookie-banner"):
+        import pyautogui
+        pyautogui.moveTo(1507, 953)
+        pyautogui.click()
+        time.sleep(1)
+        pyautogui.moveTo(955, 777)
+        pyautogui.click()
 
 def start_pw_browser(sync_playwright, loginpage):
     pw = sync_playwright().start()
@@ -135,14 +152,9 @@ def extract_every_number(element, float_number = False):
                 element = str(int(float(element.replace("Mio", " ").replace("M", " ").split(' ')[0].replace(",", ".").strip()) * 1000000))
             except:
                 return element
-        elif 'Tsd.' in element:
+        elif 'Tsd.' in element or element[-1] == 'K':
             try:
-                element = float(str(re.sub(r'[^0-9,]', '', element)).strip().replace(',','.')) * 1000
-            except:
-                return element
-        elif element[-1] == 'K':
-            try:
-                element = float(str(re.sub(r'[^0-9.]', '', element)).strip()) * 1000
+                element = float(str(re.sub(r'[^0-9,.]', '', element)).strip().replace(',','.')) * 1000
             except:
                 return element
         element = re.sub(r'[^0-9.,]', '', str(element)).strip()
@@ -337,28 +349,39 @@ def dateFormat(d):
     dt_format = datetime.strptime(date_string, '%Y-%m-%d')
     return dt_format
 
-
-def get_approx_date(crawl_date_dt, date_text):
-    if not date_text or date_text == '':
+def get_approx_date(crawl_date_dt, date_str):
+    day = crawl_date_dt.day
+    month = crawl_date_dt.month
+    cur_year = crawl_date_dt.year
+    if not date_str or date_str == '':
         return [crawl_date_dt,'']
-    if 'Tag' in date_text:
-        delta = int(re.sub(r'[^0-9]', '', date_text))
+    if 'Tag' in date_str or 'T' in date_str[-2:]:
+        delta = int(re.sub(r'[^0-9]', '', date_str))
         post_date_dt = crawl_date_dt - timedelta(days=delta)
-    elif 'Woche' in date_text:
-        delta = int(re.sub(r'[^0-9]', '', date_text))
+    elif 'Woche' in date_str:
+        delta = int(re.sub(r'[^0-9]', '', date_str))
         post_date_dt = crawl_date_dt - timedelta(weeks=delta)
-    elif 'Monat' in date_text:
-        delta = int(re.sub(r'[^0-9]', '', date_text))
+    elif 'Monat' in date_str:
+        delta = int(re.sub(r'[^0-9]', '', date_str))
         post_date_dt = crawl_date_dt - timedelta(days=delta*30)
         post_date_dt = post_date_dt.replace(day=1)
-    elif 'Jahr' in date_text:
-        delta = int(re.sub(r'[^0-9]', '', date_text))
+    elif 'Jahr' in date_str:
+        delta = int(re.sub(r'[^0-9]', '', date_str))
         if delta == 1:
             post_date_dt = crawl_date_dt - timedelta(days=365)
             post_date_dt = post_date_dt.replace(day=1)
         else:
             post_date_dt = crawl_date_dt - timedelta(days=730)
             post_date_dt = post_date_dt.replace(day=1)
+    elif '-' in date_str:
+        *year, month, day = date_str.split('-')
+        day = extract_number(day)
+        month = extract_number(month)
+        year = extract_number(str(year))
+        if not year:
+            year = cur_year
+        post_date = f'{day}.{month}.{year}'
+        post_date_dt = datetime.strptime(post_date,"%d.%m.%Y")
     else:
         post_date_dt = crawl_date_dt
     post_date = post_date_dt.strftime("%d.%m.%Y")
@@ -386,3 +409,10 @@ def get_text_from_screenshot(driver, p_name):
 
 if __name__ == "__main__":
     pass
+########################################################################################################################
+# Pyautogui Investigation process
+'''
+time.sleep(4)
+x,y = pyautogui.position()
+print(str(x)+ "," + str(y))
+'''
