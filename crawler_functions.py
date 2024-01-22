@@ -57,6 +57,10 @@ def go_to_page(driver, startpage):
     time.sleep(3)
     # Click through the first Cookie Banner
     cookiebuttons = driver.find_elements('xpath', "//*[contains(text(), 'ablehnen') or contains(text(), 'Ablehnen')]")
+    if len(cookiebuttons) == 0:
+        cookiebuttons = driver.find_elements('xpath', '//button[contains(., "ablehnen")]')
+    if len(cookiebuttons) == 0:
+        cookiebuttons = driver.find_elements(By.TAG_NAME,'button')
     if len(cookiebuttons) >= 1:
         for c in cookiebuttons:
             try:
@@ -64,13 +68,15 @@ def go_to_page(driver, startpage):
             except:
                 pass
     # Not the best solution so far
-    if driver.find_element(By.TAG_NAME, "tiktok-cookie-banner"):
+    cookiebuttons = driver.find_elements(By.TAG_NAME, "tiktok-cookie-banner")
+    if len(cookiebuttons) >= 1:
         import pyautogui
         pyautogui.moveTo(1507, 953)
         pyautogui.click()
         time.sleep(1)
         pyautogui.moveTo(955, 777)
         pyautogui.click()
+
 
 def start_pw_browser(sync_playwright, loginpage):
     pw = sync_playwright().start()
