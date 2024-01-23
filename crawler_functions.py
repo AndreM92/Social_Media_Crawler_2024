@@ -60,7 +60,7 @@ def go_to_page(driver, startpage):
     time.sleep(3)
     # Click through the first Cookie Banner
     cookiebuttons = driver.find_elements('xpath', "//*[contains(text(), 'ablehnen') or contains(text(), 'Ablehnen')]")
-    if len(cookiebuttons) == 0:
+    if len(cookiebuttons) == 0  or 'youtube' in driver.current_url:
         driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
         time.sleep(2)
         cookiebuttons = driver.find_elements('xpath', '//button[contains(., "ablehnen")]')
