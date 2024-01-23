@@ -39,13 +39,16 @@ def settings(source_file):
     return df_source, col_list, comp_header, name_header, dt, dt_str
 
 # Start the driver and open a new page
-def start_browser(webdriver, Service, chromedriver_path):
+def start_browser(webdriver, Service, chromedriver_path, headless=False, muted = False):
     # Open the Browser with a service object and an user agent
     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.182 Safari/537.36"
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument(f'user-agent={user_agent}')
     chrome_options.add_argument("--disable-notifications")
-#    chrome_options.add_argument('--headless')
+    if headless:
+        chrome_options.add_argument('--headless')
+    if muted:
+        chrome_options.add_argument("--mute-audio")
     service = Service(chromedriver_path)
     # Create a WebDriver instance using the Service and options
     driver = webdriver.Chrome(service=service, options=chrome_options)
@@ -58,6 +61,8 @@ def go_to_page(driver, startpage):
     # Click through the first Cookie Banner
     cookiebuttons = driver.find_elements('xpath', "//*[contains(text(), 'ablehnen') or contains(text(), 'Ablehnen')]")
     if len(cookiebuttons) == 0:
+        driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
+        time.sleep(2)
         cookiebuttons = driver.find_elements('xpath', '//button[contains(., "ablehnen")]')
     if len(cookiebuttons) == 0:
         cookiebuttons = driver.find_elements(By.TAG_NAME,'button')
