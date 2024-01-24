@@ -27,7 +27,7 @@ source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
 branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
                    'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 startpage = 'https://www.facebook.com/'
-network = 'Facebook'
+platform = 'Facebook'
 dt_str_now = None
 ########################################################################################################################
 
@@ -137,7 +137,7 @@ def scrapeProfile(url):
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = get_visible_text(Comment, soup)
     if ('gelöscht' in pagetext and 'nicht verfügbar' in pagetext) or len(pagetext) <= 200:
-        desc1 = 'page not available'
+        p_name = 'page not available'
         return [p_name, pagelikes, follower, last_post, desc1, desc2]
     p_name = get_p_name(driver, comp_keywords)
     if len(str(p_name)) <= 2:
@@ -210,7 +210,7 @@ if __name__ == '__main__':
             name = extract_text(row[name_header])
             comp_keywords += get_company_keywords(name, row, col_list)
             company = name
-        url = str(row[network])
+        url = str(row[platform])
         if len(url) < 10:
             data.append([id, company, dt_str] + ['' for _ in range(7)])
             continue
@@ -240,25 +240,31 @@ if __name__ == '__main__':
 ########################################################################################################################
 # Post crawler functions
 
-def post_crawler_settings():
-    upper_dt = datetime.strptime('2024-01-01', '%Y-%m-%d')
-    lower_dt = upper_dt - timedelta(days=396) # One additional month to make sure that every post is collected
+# Settings for the post crawler
+def post_crawler_settings(file):
+    filename = None
     if not dt_str_now:
-        if 'Profile_Facebook_2024-01-09.xlsx' not in os.listdir():
-            print('Facebook File not found')
-            exit()
-        else:
-            source_file = 'Profile_Facebook_2024-01-09.xlsx'
+        for f in os.listdir():
+            if not filename and file in f:
+                filename = f
     else:
-        source_file = 'Profile_Facebook_' + dt_str_now + '.xlsx'
-    return upper_dt, lower_dt, source_file
+        filename = 'Profile_Facebook_' + dt_str_now + '.xlsx'
+    if not filename:
+        print('Facebook File not found')
+        exit()
+    df_source = pd.read_excel(filename)
+    dt = datetime.now()
+    dt_str = dt.strftime("%d.%m.%Y")
+    upper_dt = datetime.strptime('2024-01-01', '%Y-%m-%d')
+    lower_dt = upper_dt - timedelta(days=396)  # One additional month to make sure that every post is collected
+    return df_source, dt, dt_str, upper_dt, lower_dt
 
-
-def inspect_page(id, row, lower_dt):
+def inspect_page(row, lower_dt):
+    id = row['ID']
     url = str(row['url'])
-    p_name = row['Profilname']
-    if len(url) < 10 or len(str(row['last post'])) <= 4 or 'Keine Beiträge' in str(row['last post']):
-        print([id, p_name, '', dt_str] + [url])
+    p_name = str(row['profile_name'])
+    if len(url) < 10 or len(str(row['last_post'])) <= 4 or 'Keine Beiträge' in str(row['last_post']):
+        print([id, p_name, '', dt_str, url])
         return None, None, None
     driver.get(url)
     time.sleep(1)
@@ -266,37 +272,55 @@ def inspect_page(id, row, lower_dt):
     time.sleep(2)
     current_dt, datelist = get_oldest_date()
     if not current_dt:
-        print([id, p_name,'',dt_str] + ['no posts'])
+        driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
+        time.sleep(2)
+        current_dt, datelist = get_oldest_date()
+    if not current_dt:
+        print([id, p_name,'',dt_str, 'no posts'])
         return None, None, None
     if current_dt > lower_dt:
-        datelist = scroll_down(datelist, lower_dt, current_dt)
+        datelist = scroll_down(lower_dt)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     # Find all posts with the driver
     # posts = driver.find_elements(By.XPATH, '//div[@role="article" and not(contains(@aria-label, "Kommentar"))]')
 #    posts = soup.find_all('div', class_='x1n2onr6 x1ja2u2z')
     posts = soup.find_all('div', {'role': 'article', 'class': 'x1a2a7pz',
                                   'aria-label': lambda x: x is None or 'Kommentar' not in x})
-    return p_name, posts, datelist
+    return id, p_name, posts, datelist
 
 
 def get_oldest_date():
     conditions = ['gestern', 'stund', 'minut', 'tage']
     soup = BeautifulSoup(driver.page_source, 'lxml')
     text_list = [str(t.text) for t in soup.find_all('text')]
-    datelist = [e for e in text_list if (e[0].isdigit() == True or any(c in e.lower() for c in conditions))]
-    if len(datelist) >= 1:
-        list_of_datetimes = [dateFormat(d) for d in datelist]
-        if len(list_of_datetimes) >= 1:
-            list_of_datetimes.sort(reverse=True)
-            current_dt = list_of_datetimes[-1]
-            datelist = [d.strftime('%d.%m.%Y') for d in list_of_datetimes]
-            return current_dt, datelist
+    datelist = [str(e) for e in text_list if e[0].isdigit()]
+    if len(datelist) == 0:
+        scr_text = get_text_from_screenshot(driver, p_name)
+        if not 'Reels' in scr_text:
+            driver.execute_script("window.scrollBy(0, 500);")
+            time.sleep(2)
+            scr_text = get_text_from_screenshot(driver, p_name)
+            if not 'Reels' in scr_text:
+                return None, datelist
+        date_raw = scr_text.split('Reels', 1)[1].split('@', 1)[0].replace('-', '').strip()
+        datelist = [date_raw]
+    list_of_datetimes = [dateFormat(d) for d in datelist]
+    list_of_datetimes.sort(reverse=True)
+    current_dt = list_of_datetimes[-1]
+    datelist = [d.strftime('%d.%m.%Y') for d in list_of_datetimes]
+    return current_dt, datelist
 
-def scroll_down(datelist, lower_dt, current_dt):
+
+def scroll_down(lower_dt):
     # Faster start:
+    for i in range(10):
+        driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
+        time.sleep(1)
+    time.sleep(3)
+    current_dt, datelist = get_oldest_date()
     date_diff = current_dt - lower_dt
-    rounds = date_diff.days // 8
-    if rounds > 60:
+    rounds = date_diff.days // 2
+    if rounds > 200:
         return datelist
     height2 = False
     for i in range(rounds):
@@ -313,24 +337,35 @@ def scroll_down(datelist, lower_dt, current_dt):
             break
     return datelist
 
-
+#rawtext = get_visible_text(Comment,posts[0])
 def scrape_reel(id_p, datelist, rawtext, p):
     post_date, likes, comments, shares, link = ['' for _ in range(5)]
     p_text = rawtext.replace('Facebook', '').strip()
-    reactions = p_text.rsplit('·', 1)[-1].strip()
+    reactions = p_text.rsplit('·', 1)[-1].strip().replace('Senden!','').strip()
+    if '.com' in reactions:
+        reactions = reactions.split('.com')[0].rsplit(' ', 1)[0]
     react_la = [str(e).strip() for e in reactions.split(' ') if 5 >= len(str(e).strip()) >= 1]
     react_l = [extract_every_number(e) for e in react_la if str(e)[0].isdigit()]
-    if len(react_l) == 3:
+    if len(react_l) >= 3:
+        react_l = react_l[:3]
         likes, comments, shares = react_l
     elif len(react_l) == 2:
         likes, comments = react_l
     elif len(react_l) == 1:
         likes = react_l[0]
     reel_date = p_text.rsplit('·', 2)[-2].strip()
+    if not reel_date or not reel_date[0].isdigit():
+        reel_date = p_text[p_text.find('Reels') + 9:].split('·')[0].strip()
     if reel_date[0].isdigit():
         post_dt = dateFormat(reel_date)
         post_date = post_dt.strftime("%d.%m.%Y")
-    if not post_dt or not post_date:
+        if post_dt >= datetime.now():
+            day = str(post_dt.day).zfill(2)
+            month = str(post_dt.month).zfill(2)
+            year = post_dt.year - 1
+            post_date = f'{day}.{month}.{year}'
+            post_dt = datetime.strptime(post_date,"%d.%m.%Y")
+    if not post_date or not post_dt:
         post_date = datetime.now().strftime("%d.%m.%Y")
     datelist.insert(id_p, post_date)
     p_text = p_text.rsplit('·', 1)[0].strip()
@@ -424,13 +459,11 @@ def post_scraper(p_name, posts, datelist, upper_dt, lower_dt):
             reels = True
     if len(posts) > len(datelist) and not reels:
         datelist = [datetime.now().strftime('%d.%m.%Y')] + datelist
-
     for id_p, p in enumerate(posts):
         post_date = ''
         rawtext = str(get_visible_text(Comment, p))
         if len(rawtext) <= 100 or not p_name[:4].lower() in rawtext.lower():
             continue
-
         if 'Reels' in rawtext:
             p_type = 'reel'
             video, image = 1, 0
@@ -441,7 +474,7 @@ def post_scraper(p_name, posts, datelist, upper_dt, lower_dt):
             image, video = find_p_elements(p, rawtext)
             p_text1, p_text, reactions, comments = split_p_text(rawtext)
             likes, comments, shares = get_reactions(p_text1, reactions, comments)
-        if id_p >= len(datelist):
+        if id_p >= len(datelist) and not post_date:
             break
         if not post_date:
             post_date = datelist[id_p]
@@ -462,14 +495,12 @@ def post_scraper(p_name, posts, datelist, upper_dt, lower_dt):
 ########################################################################################################################
 # Post Crawler
 if __name__ == '__main__':
-    # Settings for the post crawler
     os.chdir(path_to_crawler_functions)
     from crawler_functions import *
     import credentials_file as cred
     os.chdir(file_path)
-    upper_dt, lower_dt, source_file = post_crawler_settings()
-    df_source, col_list, comp_header, comp_header2, dt, dt_str = settings(source_file)
-    df_source, col_list, comp_header, comp_header2, dt, dt_str = settings(source_file)
+    file ='Profile_Facebook_2024'
+    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file)
 
     # Driver and Browser setup
     all_data = []
@@ -477,9 +508,15 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
     login(cred.username_fb, cred.password_fb, driver, pyautogui)
 
+    skip = True
     # Iterate over the companies
-    for id, row in df_source.iterrows():
-        p_name, posts, datelist = inspect_page(id, row, lower_dt)
+    for count, row in df_source.iterrows():
+        if count >= 21:
+            skip = False
+        if skip:
+            continue
+
+        id, p_name, posts, datelist = inspect_page(row, lower_dt)
         if not posts:
             continue
         # Post_scraper scrapes the data of every post
@@ -487,7 +524,7 @@ if __name__ == '__main__':
         all_data += data_per_company
 
     # Create a DataFrame with all posts
-    header1 = ['ID_A', 'Profilname', 'ID_P', 'Datum_Erhebung', 'Datum_Beitrag']
+    header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
     header2 = ['Likes', 'Kommentare', 'Shares', 'Bild', 'Video', 'Beitragsart', 'Link', 'Content']
     dfPosts = pd.DataFrame(all_data, columns=header1 + header2)
 
@@ -503,6 +540,9 @@ if __name__ == '__main__':
     driver.quit()
 ########################################################################################################################
 ########################################################################################################################
+for d in data_per_company:
+    print(d)
+
 '''
 # Correcting the dates with post links
 fill_data = []
