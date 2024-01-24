@@ -293,7 +293,7 @@ def getDates(dt_str):
 ###
     if 'std' in dt_str.lower() or 'min' in dt_str.lower():
         curr_dt = datetime.now().date()
-        curr_dt_str = curr_dt.strftime('%Y-%m-%d')
+        curr_dt_str = curr_dt.strftime('%d.%m.%Y')
         dates_first.append(curr_dt_str)
 ###
     datelist = [elem for sublist in [dates_first, dates_second, dates_months] if sublist for elem in sublist]
@@ -327,7 +327,7 @@ def dateFormat(d):
                 year = new_date.year
         else:
             # Pay attention to the year
-            if datetime.now().day - datetime.strptime('31.12.2023', '%d.%m.%Y').day <= 31:
+            if (datetime.now() - datetime.strptime('31.12.2023', '%d.%m.%Y')).days <= 6:
                 year = datetime.now().year - 1
             date_ls = d.split('.')
             if len(date_ls) == 2:
@@ -356,8 +356,8 @@ def dateFormat(d):
     day = str(day).replace('-','')
     day = str(day).zfill(2)
     month = str(month).zfill(2)
-    date_string = f'{year}-{month}-{day}'
-    dt_format = datetime.strptime(date_string, '%Y-%m-%d')
+    date_string = f'{day}.{month}.{year}'
+    dt_format = datetime.strptime(date_string, '%d.%m.%Y')
     return dt_format
 
 def get_approx_date(crawl_date_dt, date_str):
