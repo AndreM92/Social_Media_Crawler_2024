@@ -31,21 +31,7 @@ platform = 'Facebook'
 dt_str_now = None
 ########################################################################################################################
 
-def settings(source_file):
-    df_source = pd.read_excel(source_file)
-    df_source.set_index('ID',inplace=True)
-    col_list = list(df_source.columns)
-    comp_header, name_header = None, None
-    for e in col_list:
-        if not comp_header and ('Firma' in e or 'Anbieter' in e or 'Marke' in e):
-            comp_header = e
-        if not name_header and 'Name' in e:
-            name_header = e
-    dt = datetime.now()
-    dt_str = dt.strftime("%d.%m.%Y")
-    return df_source, col_list, comp_header, name_header, dt, dt_str
-
-# Login function
+# Facebook Login function
 def login(useremail, password, driver, pyautogui):
     try:
         WebDriverWait(driver,5).until(EC.presence_of_element_located((By.XPATH,'/html/body/div[1]/div[1]/div[1]/div/div/div/div[1]/div/img')))
@@ -239,25 +225,6 @@ if __name__ == '__main__':
 
 ########################################################################################################################
 # Post crawler functions
-
-# Settings for the post crawler
-def post_crawler_settings(file):
-    filename = None
-    if not dt_str_now:
-        for f in os.listdir():
-            if not filename and file in f:
-                filename = f
-    else:
-        filename = 'Profile_Facebook_' + dt_str_now + '.xlsx'
-    if not filename:
-        print('Facebook File not found')
-        exit()
-    df_source = pd.read_excel(filename)
-    dt = datetime.now()
-    dt_str = dt.strftime("%d.%m.%Y")
-    upper_dt = datetime.strptime('2024-01-01', '%Y-%m-%d')
-    lower_dt = upper_dt - timedelta(days=396)  # One additional month to make sure that every post is collected
-    return df_source, dt, dt_str, upper_dt, lower_dt
 
 def inspect_page(row, lower_dt):
     id = row['ID']
@@ -492,7 +459,17 @@ def post_scraper(p_name, posts, datelist, upper_dt, lower_dt):
         data_per_company.append(full_row)
     return data_per_company
 
+
+def restart_browser(driver, webdriver, Service, chromedriver_path):
+    driver.quit()
+    time.sleep(3)
+    driver = start_browser(webdriver, Service, chromedriver_path)
+    go_to_page(driver, startpage)
+    login(cred.username_fb, cred.password_fb, driver, pyautogui)
+    time.sleep(3)
+    return driver
 ########################################################################################################################
+
 # Post Crawler
 if __name__ == '__main__':
     os.chdir(path_to_crawler_functions)
@@ -500,7 +477,7 @@ if __name__ == '__main__':
     import credentials_file as cred
     os.chdir(file_path)
     file ='Profile_Facebook_2024'
-    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file)
+    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, dt_str_now)
 
     # Driver and Browser setup
     all_data = []
@@ -511,127 +488,47 @@ if __name__ == '__main__':
     skip = True
     # Iterate over the companies
     for count, row in df_source.iterrows():
-        if count >= 21:
+        if count >= 0:
             skip = False
         if skip:
             continue
-
-        id, p_name, posts, datelist = inspect_page(row, lower_dt)
+        if len(str(row['url'])) < 10:
+            continue
+        # Restart the browser after 5 companies
+        if count % 5 == 0:
+            driver = restart_browser(driver, webdriver, Service, chromedriver_path)
+        # Troubleshooting various issues like network errors
+        try:
+            id, p_name, posts, datelist = inspect_page(row, lower_dt)
+        except:
+            driver = restart_browser(driver, webdriver, Service, chromedriver_path)
+            id, p_name, posts, datelist = inspect_page(row, lower_dt)
         if not posts:
             continue
+
         # Post_scraper scrapes the data of every post
         data_per_company = post_scraper(p_name, posts, datelist, upper_dt, lower_dt)
         all_data += data_per_company
 
-    # Create a DataFrame with all posts
-    header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
-    header2 = ['Likes', 'Kommentare', 'Shares', 'Bild', 'Video', 'Beitragsart', 'Link', 'Content']
-    dfPosts = pd.DataFrame(all_data, columns=header1 + header2)
+        # Create a DataFrame with all posts
+        header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
+        header2 = ['Likes', 'Kommentare', 'Shares', 'Bild', 'Video', 'Beitragsart', 'Link', 'Content']
+        dfPosts = pd.DataFrame(all_data, columns=header1 + header2)
 
-    # Export dfPosts to Excel or CSV (with the current time)
-    dt_str_now2 = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-    file_name = 'Beiträge_Facebook_' + dt_str_now2
-    # In case there are issues with specific characters
-    try:
-        dfPosts.to_excel(file_name + '.xlsx')
-    except:
-        dfPosts.to_csv(file_name + '.csv', index=False)
+        # Export dfPosts to Excel or CSV (with the current time)
+        dt_str_now2 = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+        file_name = 'Beiträge_Facebook_' + dt_str_now2
+        # In case there are issues with specific characters
+        try:
+            dfPosts.to_excel(file_name + '.xlsx')
+        except:
+            dfPosts.to_csv(file_name + '.csv', index=False)
 
     driver.quit()
 ########################################################################################################################
 ########################################################################################################################
-for d in data_per_company:
-    print(d)
-
-'''
-# Correcting the dates with post links
-fill_data = []
-#source_file = r"C:\Users\andre\OneDrive\Desktop\SSM_Energieanbieter\Beiträge_Facebook_2023-11-26_aktuell.xlsx"
-source_file = r"dates_to_correct.xlsx"
-df_fillc = pd.read_excel(source_file)
-count = 0
-for id, row in df_fillc.iterrows():
-    count += 1
-#    if count == 1:
-#        continue
-    n = row['ID']
-    link = str(row['Link'])
-    p_name = row['Profilname']
-#    date = str(row['Datum_Beitrag'])
-    date = str(row['Datum'])
-    content = str(row['Content'])
-#    if n <= 11952:
- #       continue
-    go_crawl = False
-    if 'http' in link and '/posts/' in link and not 'Reels' in content:
-        try:
-            driver.get(link)
-            go_crawl = True
-            pyautogui.moveTo(683, 295)
-            time.sleep(2)
-            if '/watch' in driver.current_url:
-                pyautogui.moveTo(1240, 342)
-            time.sleep(1)
-        except:
-            link = ''
-    if go_crawl:
-        soup = BeautifulSoup(driver.page_source, 'lxml')
-        rawtext = get_visible_text(Comment, soup)
-        dateline = extract_text(rawtext.rsplit('Facebook',1)[-1])
-        datelist = getDates(dateline)
-        if len(datelist) == 0:
-            time.sleep(2)
-            soup = BeautifulSoup(driver.page_source, 'lxml')
-            rawtext = get_visible_text(Comment, soup)
-            dateline = extract_text(rawtext.rsplit('Facebook', 1)[-1])
-            datelist = getDates(dateline)
-        if len(datelist) >= 1:
-            if '/watch' in driver.current_url:
-                date_str = datelist[-1]
-            else:
-                date_str = datelist[0]
-            try:
-                current_dt = dateFormat(date_str)
-                alt_date = dateFormat(datelist[-1])
-                date = current_dt.strftime('%d.%m.%Y')
-            except:
-                pass
-        if len(content) <= 10 and not 'Reel' in content:
-            content_el = ''
-            pagetext = ''
-            post = soup.find('div',class_='x1n2onr6 x1ja2u2z')
-            if not post:
-                post = soup.find('div',class_='x1swvt13 x1pi30zi xyamay9')
-            if post:
-                pagetext = get_visible_text(Comment, post)
-                if '·' in pagetext:
-                    pagetext = pagetext.split('·',2)[2]
-                if 'Mit Öffentlich geteilt' in rawtext:
-                    pagetext = pagetext.split('Mit Öffentlich geteilt',1)[1]
-                if pagetext:
-                    pagetext = extract_text(pagetext)
-                content_el = post.find('div',{'data-ad-preview':'message'})
-            if content_el:
-                content = get_visible_text(Comment, content_el)
-                if len(content) <= 5:
-                    content = pagetext
-                content = '__' + content
-    if len(str(content)) <= 5:
-        content = ''
-    print(date, alt_date, datelist)
-
-
-    fill_data.append([n, p_name, date, content])
-    #print(n, p_name, date, content[:100])
-
-
-df_filled = pd.DataFrame(fill_data, columns=['ID', 'Profilname', 'Datum2', 'Content2'])
-df_filled.to_excel('Corrected_Dates.xlsx')
-print('Done')
-driver.quit()
-
-########################################################################################################################
 # Pyautogui Investigation process
+'''
 time.sleep(4)
 x,y = pyautogui.position()
 print(str(x)+ "," + str(y))
