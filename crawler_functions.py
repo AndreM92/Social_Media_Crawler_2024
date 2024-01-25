@@ -38,6 +38,26 @@ def settings(source_file):
     dt_str = dt.strftime("%d.%m.%Y")
     return df_source, col_list, comp_header, name_header, dt, dt_str
 
+
+# Settings for the post crawler
+def post_crawler_settings(file, dt_str_now):
+    filename = None
+    if not dt_str_now:
+        for f in os.listdir():
+            if not filename and file in f:
+                filename = f
+    else:
+        filename = 'Profile_Facebook_' + dt_str_now + '.xlsx'
+    if not filename:
+        print('Facebook File not found')
+        exit()
+    df_source = pd.read_excel(filename)
+    dt = datetime.now()
+    dt_str = dt.strftime("%d.%m.%Y")
+    upper_dt = datetime.strptime('2024-01-01', '%Y-%m-%d')
+    lower_dt = upper_dt - timedelta(days=396)  # One additional month to make sure that every post is collected
+    return df_source, dt, dt_str, upper_dt, lower_dt
+
 # Start the driver and open a new page
 def start_browser(webdriver, Service, chromedriver_path, headless=False, muted = False):
     # Open the Browser with a service object and an user agent
