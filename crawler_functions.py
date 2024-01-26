@@ -40,22 +40,22 @@ def settings(source_file):
 
 
 # Settings for the post crawler
-def post_crawler_settings(file, dt_str_now):
+def post_crawler_settings(file, platform, dt_str_now):
     filename = None
     if not dt_str_now:
         for f in os.listdir():
             if not filename and file in f:
                 filename = f
     else:
-        filename = 'Profile_Facebook_' + dt_str_now + '.xlsx'
+        filename = 'Profile_' + platform + '_' + dt_str_now + '.xlsx'
     if not filename:
-        print('Facebook File not found')
+        print('File not found')
         exit()
     df_source = pd.read_excel(filename)
     dt = datetime.now()
     dt_str = dt.strftime("%d.%m.%Y")
     upper_dt = datetime.strptime('2024-01-01', '%Y-%m-%d')
-    lower_dt = upper_dt - timedelta(days=396)  # One additional month to make sure that every post is collected
+    lower_dt = upper_dt - timedelta(days=365)
     return df_source, dt, dt_str, upper_dt, lower_dt
 
 # Start the driver and open a new page
