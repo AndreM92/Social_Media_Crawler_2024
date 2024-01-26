@@ -26,7 +26,7 @@ source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
 branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
                    'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 startpage = 'https://twitter.com/i/flow/login'
-network = 'X'
+platform = 'Twitter'
 dt_str_now = None
 ########################################################################################################################
 
@@ -56,6 +56,7 @@ def login(driver, startpage, email, password):
             c.click()
         except:
             pass
+    time.sleep(2)
 #    pushx = '//*[@id="layers"]/div/div/div/div/div/div/div[2]/div[2]/div/div/div[2]/div[2]/div/div/div/div[6]/div'
 #    driver.find_element('xpath',pushx).click()
     # Error: Unusual Login activities
@@ -193,54 +194,48 @@ if __name__ == '__main__':
     df_profiles.set_index('ID')
 
     # Export to Excel
-    #    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+#    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
     dt_str_now = datetime.now().strftime("%Y-%m-%d")
-    recent_filename = 'Profile_Twitter_' + dt_str_now + '.xlsx'
+    recent_filename = 'Profile_' + platform + '_' + dt_str_now + '.xlsx'
     df_profiles.to_excel(recent_filename)
 
     driver.quit()
 ########################################################################################################################
 
 # Post crawler functions
-def post_crawler_settings():
-    upper_dt = datetime.strptime('2024-01-01', '%Y-%m-%d')
-    lower_dt = upper_dt - timedelta(days=365)
-    if dt_str_now:
-        source_file = 'Profile_Twitter_' + dt_str_now + '.xlsx'
-        return upper_dt, lower_dt, source_file
-    # Else: load the last file I created
-    source_file = 'Profile_Twitter_2024-01-13.xlsx'
-    if source_file not in os.listdir():
-        print('Twitter File not found')
-        exit()
-    return upper_dt, lower_dt, source_file
 
-def inspect_page(id, row, lower_dt):
+def inspect_page(row, lower_dt):
+    id = str(row['ID'])
     url = str(row['url'])
-    p_name = row['Profilname']
-    if len(url) < 10 or len(str(row['last post'])) <= 4 or '2022' in str(row['last post']):
+    p_name = row['profile_name']
+    if len(url) < 10 or len(str(row['last_post'])) <= 4 or '2022' in str(row['last_post']):
         print([id, p_name, '', '', url])
-        return ['' for _ in range(4)]
+        return ['' for _ in range(5)]
     driver.get(url)
     time.sleep(3)
-    driver.execute_script("window.scrollBy(0,1500)", "")
-    time.sleep(2)
     last_post, current_dt, posts = get_last_date()
     if not current_dt:
-        return ['' for _ in range(4)]
+        driver.execute_script("window.scrollBy(0,1500)", "")
+        time.sleep(1)
+        last_post, current_dt, posts = get_last_date()
+    if not current_dt:
+        return ['' for _ in range(5)]
     if current_dt < lower_dt:
         posts = ''
     url = driver.current_url
-    return p_name, url, posts, last_post
+    return id, p_name, url, posts, last_post
 
 # Scrape the post interactions
 def get_reactions(p):
     react_elements = p.find_all('div', {'aria-label': True})
     aria_content = [str(e['aria-label']).lower().strip() for e in react_elements]
+    react_elements2 = p.find_all('a', {'aria-label': True})
+    aria_content2 = [str(e['aria-label']).lower().strip() for e in react_elements2]
     for a in aria_content:
         if ',' in a:
             aria_content += a.split(',')
     react_list = [a for a in aria_content if (20 > len(a) > 4 and not ('like' and 'view' in a))]
+    react_list += [a for a in aria_content2 if 'view' in a]
     likes, comments, shares, views = [0 for _ in range(4)]
     for a in react_list:
         if 'like' in a and likes == 0:
@@ -249,7 +244,7 @@ def get_reactions(p):
             comments = extract_every_number(a)
         elif 'repost' in a and shares == 0:
             shares = extract_every_number(a)
-        elif 'view' in a and views == 0:
+        elif ('view' in a or 'View' in a) and views == 0:
             views = extract_every_number(a)
     return likes, comments, shares, views
 
@@ -278,29 +273,35 @@ def get_link(p):
 # post_scraper function scrapes the details of every post
 def post_scraper(p, p_name, lower_dt):
     full_text = get_visible_text(Comment, p)
+    if not full_text:
+        return None, None
     try:
         date_elem = p.find('time')['datetime']
         date = date_elem.split('T')[0].strip()
         date_dt = datetime.strptime(date, "%Y-%m-%d")
         date = date_dt.strftime("%d.%m.%Y")
-        if date_dt >= upper_dt or date_dt < lower_dt:
+        if not 'retweet' in full_text and (date_dt >= upper_dt or date_dt < lower_dt):
             return None, date_dt
     except:
         return None, None
     tweet_type = 'tweet'
     if 'retweet' in full_text.lower() or 'repost' in full_text:
         tweet_type = 'retweet'
-    ns = re.sub(r'[.-_]', '', p_name.lower()).strip()
-    if not ns.lower() in full_text[:50].lower():
+    ns = re.sub(r'[.-_]', '', p_name).strip().lower()
+    if not (ns[:3] in full_text[:50].lower() or ns[4:] in full_text[:50].lower()):
         tweet_type = 'ad'
-        p_name = full_text[:50].split('·')[0]
+    p_name2 = p_name
+    if '·' in full_text:
+        p_name2 = full_text[:50].split('·')[0].split('@')[0].strip()
+        full_text = full_text.split('·',1)[1].strip()
     likes, comments, shares, views = get_reactions(p)
     image, video, tweet_type = get_post_elements(p, full_text, tweet_type)
     link = get_link(p)
     content_elem = p.find_all('span')
     content_all = [extract_text(t) for t in content_elem]
     content = ' '.join(
-        [e for e in content_all if (e.strip() != p_name and e.strip() != '@' + p_name) and len(e) >= 3])
+        [e for e in content_all if (e.strip() != p_name and e.strip() != '@' + p_name)
+         and (e.strip() != p_name2 and e.strip() != '@' + p_name2) and len(e) >= 3])
     if len(str(content)) <= 4:
         content = full_text
     post_data = [date, tweet_type, likes, comments, shares, views, image, video, link, content]
@@ -314,8 +315,10 @@ def scroller(scrolls, height2):
     time.sleep(3)
     if scrolls >= 50:
         time.sleep(1)
+    if scrolls >= 150:
+        time.sleep(1)
     height3 = driver.execute_script("return document.documentElement.scrollHeight")
-    if height1 == height3 or scrolls == 300:
+    if height1 == height3 or scrolls == 280:
         return True, scrolls, height2
     return False, scrolls, height2
 
@@ -328,18 +331,17 @@ def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
     id_ad = 0
     scrolls = 0
     height2 = False
-
     while crawl:
         soup = BeautifulSoup(driver.page_source, 'lxml')
         posts = soup.find_all('article')
-        if not posts:
+        if not posts and scrolls == 0:
             crawl = False
         for p in posts:
             post_data, date_dt = post_scraper(p, p_name, lower_dt)
-            if not date_dt or date_dt < lower_dt:
+            if date_dt and date_dt < lower_dt:
                 crawl = False
                 break
-            if not post_data or date_dt >= upper_dt:
+            if not post_data or not date_dt or date_dt >= upper_dt:
                 continue
             link = post_data[-2]
             if link in distinct_linklist:
@@ -350,21 +352,50 @@ def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
             else:
                 full_row = [id, p_name, id_p, dt_str] + post_data
                 id_p += 1
-            print(full_row)
+            #print(full_row)
             distinct_linklist.append(link)
             distinct_posts.append(full_row)
         stopped, scrolls, height2 = scroller(scrolls, height2)
         scrolls += 1
-        if scrolls >= 15 or stopped:
+        # I just want to make sure that the scroller doesn't stop too early
+        #if scrolls >= 300 or stopped:
+        if scrolls >= 400:
             break
     return distinct_posts
 
+
+def restart_browser(driver, webdriver, Service, chromedriver_path):
+    driver.quit()
+    time.sleep(3)
+    driver = start_browser(webdriver, Service, chromedriver_path)
+    go_to_page(driver, startpage)
+    login(driver, startpage, cred.username_tw, cred.password_tw)
+    time.sleep(3)
+    return driver
+
+def check_conditions(count, row, start_at = 0):
+    if count < start_at:      # If you want to skip some rows
+        return True
+    if len(str(row['url'])) < 10:
+        return True
+    try:
+        last_datestr = extract_text(row['last_post'])
+        last_dt = datetime.strptime(last_datestr, "%d.%m.%Y")
+        if (lower_dt - timedelta(days=31)) > last_dt:
+            return True
+    except:
+        return False
 ########################################################################################################################
 # Post Crawler
+
 if __name__ == '__main__':
     # Settings for the post crawler
-    upper_dt, lower_dt, source_file = post_crawler_settings()
-    df_source, col_list, comp_header, dt, dt_str = settings(source_file)
+    os.chdir(path_to_crawler_functions)
+    from crawler_functions import *
+    import credentials_file as cred
+    os.chdir(file_path)
+    file ='Profile_Twitter_2024'
+    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
 
     # Driver and Browser setup
     all_data = []
@@ -373,21 +404,29 @@ if __name__ == '__main__':
     login(driver, startpage, cred.username_tw, cred.password_tw)
 
     # Iterate over the companies
-    for id, row in df_source.iterrows():
-        p_name, url, posts, last_post = inspect_page(id, row, lower_dt)
+    for count, row in df_source.iterrows():
+        skip = check_conditions(count, row, 2) # Start at the row 0
+        if skip:
+            continue
+        break
+        # Restart the browser after 10 companies
+#        if count > 0 and count % 10 == 0:
+#            driver = restart_browser(driver, webdriver, Service, chromedriver_path)
+        id, p_name, url, posts, last_post = inspect_page(row, lower_dt)
         if not posts:
             continue
+
         data_per_company = page_crawler(id, p_name, dt_str, upper_dt, lower_dt)
         all_data += data_per_company
 
-    # Create a DataFrame with all posts
-    header1 = ['ID_A', 'Profilname', 'ID_P', 'Erhebung', 'Datum']
-    header2 = ['Beitragsart', 'Likes', 'Kommentare', 'Retweets', 'Aufrufe', 'Bild', 'Video', 'Link', 'Content']
-    dfPosts = pd.DataFrame(all_data,columns=header1+header2)
+        # Create a DataFrame with all posts
+        header1 = ['ID_A', 'Profilname', 'ID_P', 'Erhebung', 'Datum']
+        header2 = ['Beitragsart', 'Likes', 'Kommentare', 'Retweets', 'Aufrufe', 'Bild', 'Video', 'Link', 'Content']
+        dfPosts = pd.DataFrame(all_data,columns=header1+header2)
 
-    # Export dfPosts to Excel (with the current time)
-    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-    file_name = 'Beiträge_Twitter_' + dt_str_now + '.xlsx'
-    dfPosts.to_excel(file_name)
+        # Export dfPosts to Excel (with the current time)
+        dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+        file_name = 'Beiträge_Twitter_' + dt_str_now + '.xlsx'
+        dfPosts.to_excel(file_name)
 
     driver.quit()
