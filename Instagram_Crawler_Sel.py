@@ -1,6 +1,3 @@
-from crawler_functions import *
-import credentials_file as cred
-
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -9,6 +6,8 @@ import selenium.webdriver.support.expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 
 import pyautogui
+# Be careful with that!
+pyautogui.FAILSAFE = False
 
 import requests
 from bs4 import BeautifulSoup
@@ -22,16 +21,19 @@ import re
 from datetime import datetime, timedelta
 
 import os
-
-# Settings
-newpath = r"C:\Users\andre\OneDrive\Desktop\SSM_Energieanbieter"
-os.chdir(newpath)
+# Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
+path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
+file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
+source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
+branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
+                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 startpage = 'https://www.instagram.com/'
-network = 'Instagram'
+platform = 'Instagram'
+dt_str_now = None
 ########################################################################################################################
 
-def remove_insta_cookies2():
+def remove_insta_cookies():
     cookiebuttons = driver.find_elements('xpath', "//*[contains(text(), 'Jetzt nicht') or contains(text(), 'jetzt nicht')]")
     if len(cookiebuttons) >= 1:
         for c in cookiebuttons:
@@ -60,9 +62,9 @@ def login(username, password):
         pwslot.send_keys(char)
         time.sleep(.1)
     driver.find_element('xpath', "//*[text()='Anmelden']").click()
-    for _ in range(5):
+    for _ in range(7):
         time.sleep(2)
-        remove_insta_cookies2()
+        remove_insta_cookies()
 
 # This function scrapes the details of every profile
 def scrapeProfile(link, comp_keywords):
@@ -71,21 +73,23 @@ def scrapeProfile(link, comp_keywords):
     time.sleep(4)
     new_url = driver.current_url
     soup = BeautifulSoup(driver.page_source, 'lxml')
-    pagetext = get_visible_text(Comment, soup)
-    full_desc = get_visible_text(Comment, soup.find('header'))
-    if len(full_desc) <= 100:
-        time.sleep(2)
-        soup = BeautifulSoup(driver.page_source, 'lxml')
-        pagetext = get_visible_text(Comment, soup)
-        full_desc = get_visible_text(Comment, soup.find('header'))
-    if not network.lower() + '.com' in driver.current_url:
-        p_name = 'Wrong page'
-        return [p_name, total_posts, follower, last_post, new_url, desc]
+    pagetext = str(get_visible_text(Comment, soup))
     broken_profile = ['nicht verfügbar', 'Eingeschränktes Profil', 'Konto ist privat', 'Seite wurde entfernt']
     for m in broken_profile:
         if m in pagetext:
             p_name = m
+            print(m)
             return [p_name, total_posts, follower, last_post, new_url, desc]
+
+    full_desc = get_visible_text(Comment, soup.find('header'))
+    if not full_desc or len(full_desc) <= 100:
+        time.sleep(3)
+        soup = BeautifulSoup(driver.page_source, 'lxml')
+        pagetext = get_visible_text(Comment, soup)
+        full_desc = get_visible_text(Comment, soup.find('header'))
+    if not platform.lower() + '.com' in driver.current_url:
+        p_name = 'Wrong page'
+        return [p_name, total_posts, follower, last_post, new_url, desc]
 
     headers = [h.text for h in driver.find_elements(By.XPATH, '//h2') if h.text]
     if len(headers) == 1:
@@ -103,9 +107,9 @@ def scrapeProfile(link, comp_keywords):
             for e in stats_list:
                 i = extract_text(e)
                 if 'Beiträge' in i:
-                    total_posts = extract_number(i.split(' ')[0])
+                    total_posts = extract_every_number(i)
                 elif 'Follower' in i:
-                    follower = extract_number(i.split(' ')[0])
+                    follower = extract_every_number(i)
         else:
             total_posts = full_desc
     header = soup.find('section')
@@ -117,9 +121,13 @@ def scrapeProfile(link, comp_keywords):
     if len(str(desc)) <= 4:
         desc = pagetext
     if 'Noch keine Beiträge' in pagetext:
-        return [p_name, dt_str, total_posts, follower, last_post, new_url, desc]
+        return [p_name, total_posts, follower, last_post, new_url, desc]
 
-    p_links = ['https://www.instagram.com' + str(l['href']) for l in soup.find_all('a',href=True) if '/p/' in str(l['href'])]
+    link_elems = [str(l['href']) for l in soup.find_all('a',href=True)]
+    all_links = ['https://www.instagram.com' + l for l in link_elems if not 'http' in l]
+    p_links = [l for l in all_links if '/p/' in l]
+    if len(p_links) == 0:
+        p_links = [l for l in all_links if '/reel/' in l]
     if len(p_links) >= 1:
         driver.get(p_links[0])
         time.sleep(2)
@@ -129,92 +137,85 @@ def scrapeProfile(link, comp_keywords):
             last_post = last_post['datetime'].split('T')[0]
             last_dt = datetime.strptime(last_post,'%Y-%m-%d')
             last_post = last_dt.strftime('%d.%m.%Y')
-
     return [p_name, total_posts, follower, last_post, new_url, desc]
-
 ########################################################################################################################
-# Further Settings
-source_file = "Energieanbieter_Auswahl.xlsx"
-df_source = pd.read_excel(source_file)
-df_source.set_index('ID',inplace=True)
-col_list = list(df_source.columns)
-if 'Anbieter' in col_list:
-    comph_header = 'Anbieter'
-elif 'Firma' in col_list:
-    comp_header = 'Firma'
-comph2 = 'Name in Studie'
-dt = datetime.now()
-dt_str = dt.strftime("%d.%m.%Y")
-data = []
 
-# start crawling
-driver = start_browser(webdriver, Service, chromedriver_path)
-go_to_page(driver, startpage)
-login(cred.username_insta, cred.password_insta)
+# Profile crawler
+if __name__ == '__main__':
+    # Settings for profile scraping
+    os.chdir(path_to_crawler_functions)
+    from crawler_functions import *
+    import credentials_file as cred
+    os.chdir(file_path)
+    df_source, col_list, comp_header, name_header, dt, dt_str = settings(source_file)
 
-# Loop
-count = 0
-for id, row in df_source.iterrows():
-    count += 1
-    url = str(row[network])
-    company = row[comp_header]
-    if len(url) < 10:
-        empty_row = [id, company, dt_str] + ['' for _ in range(6)]
-        data.append(empty_row)
-        continue
-    comp_keywords = get_company_keywords(company, row, col_list)
-    comp_keywords += [row[comph2]]
-    scraped_data = scrapeProfile(url, comp_keywords)
-    full_row = [id, company, dt_str] + scraped_data
-    data.append(full_row)
-    # To look at the results immediately
-    print(count,full_row[:-1])
+    # Start crawling
+    data = []
+    driver = start_browser(webdriver, Service, chromedriver_path)
+    go_to_page(driver, startpage)
+    login(cred.username_insta, cred.password_insta)
 
+    # Iterating over the companies
+    count = 0  # If id's aren't ordered
+    for id, row in df_source.iterrows():
+        count += 1
+        if count <= 0:  # If you want to skip some rows
+            continue
 
-# DataFrame
-header = ['ID','Anbieter','Erh.Datum','Profilname','likes','follower','last post','url','description']
-dfProfiles = pd.DataFrame(data,columns=header)
-dfProfiles.set_index('ID')
+        company = extract_text(row[comp_header])
+        comp_keywords = get_company_keywords(company, row, col_list)
+        url = str(row[platform])
+        if len(url) < 10:
+            empty_row = [id, company, dt_str] + ['' for _ in range(6)]
+            data.append(empty_row)
+            continue
 
-# Export to Excel
-filename_profiles = 'Profile_' + network + '.xlsx'
-with pd.ExcelWriter(filename_profiles) as writer:
-    dfProfiles.to_excel(writer, sheet_name='Profildaten')
+        scraped_data = scrapeProfile(url, comp_keywords)
+        full_row = [id, company, dt_str] + scraped_data
+        data.append(full_row)
+        print(count,full_row[:-1])
 
+    # DataFrame
+    header = ['ID', 'company', 'date', 'profile_name', 'all_posts', 'follower', 'last_post', 'url', 'description']
+    df_profiles = pd.DataFrame(new_data,columns=header)
+    df_profiles.set_index('ID')
+
+    # Export to Excel
+#    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+    dt_str_now = datetime.now().strftime("%Y-%m-%d")
+    recent_filename = 'Profile_' + platform + '_' + dt_str_now + '.xlsx'
+    df_profiles.to_excel(recent_filename)
+
+    driver.quit()
 ########################################################################################################################
+
 # post_crawler functions
 
 def clickOnFirst(startlink):
-    try:
-        driver.find_element(By.CLASS_NAME, '_aagw').click()
+    # Second post to avoid pinned comments
+    posts = driver.find_elements(By.CLASS_NAME, '_aagw')
+    if len(posts) >= 2:
+        posts[1].click()
         time.sleep(2)
-    except:
-        try:
-            time.sleep(2)
-            driver.find_element(By.CLASS_NAME, '_aagw').click()
-            time.sleep(1)
-        except:
-            pyautogui.moveTo(650, 900)
-            pyautogui.click()
-            time.sleep(2)
+        post_url = driver.current_url
+        if post_url != startlink and 'instagram.com' in post_url:
+            return post_url
+    soup = BeautifulSoup(driver.page_source,'html.parser')
+    links = [str(l['href']) for l in soup.find_all('a',href=True)]
+    p_links = ['https://www.instagram.com' + l for l in links if '/p/' in l and not 'http' in l]
+    if len(p_links) >= 2:
+        driver.get(p_links[1])
+        time.sleep(2)
+        post_url = driver.current_url
+        if post_url != startlink and 'instagram.com' in post_url:
+            return post_url
+    pyautogui.moveTo(1122, 1000)
+    pyautogui.click()
+    time.sleep(2)
     post_url = driver.current_url
-    if post_url == startlink:
-        link_elems = driver.find_elements(By.CSS_SELECTOR, 'a[href]')
-        if len(link_elems) >= 1:
-            links = [a.get_attribute('href') for a in link_elems]
-            p_links = ['https://www.instagram.com' + str(l) for l in links if '/p/' in str(l) and not 'http' in str(l)]
-            if len(p_links) == 0:
-                return None
-            first_post = p_links[0]
-            try:
-                driver.get(first_post)
-                time.sleep(2)
-            except:
-                pass
-    post_url = driver.current_url
-    if post_url == startlink or not 'instagram.com' in post_url:
-        post_url == None
-    return post_url
+    if post_url != startlink and 'instagram.com' in post_url:
+        return post_url
+    return None
 
 
 def nextPost(startlink):
@@ -246,58 +247,62 @@ def nextPost(startlink):
         post_url == None
     return post_url
 
-
-def get_commentnumber(soup, post_text):
+def comment_crawler(driver, post_text):
     orig_page = driver.current_url
     if 'keine kommentare' in post_text.lower():
         return 0
-    comments = len(soup.find_all('ul', class_='_a9ym'))
-    c_section = 'x78zum5 xdt5ytf x1iyjqo2'
-    if comments == 0:
-        comments_elem = soup.find('div', class_=c_section)
-        if comments_elem:
-            comments = len(comments_elem)
+    comments, soup = get_commentnumber()
     if comments <= 5:
         return comments
-    pyautogui.moveTo(1475, 330)
-    pyautogui.scroll(-1500)
-    pyautogui.moveTo(1385,755)
-    # Clicking led to many errors so I will scrape the correct higher comment counts later (with the post links)
-#    pyautogui.click()
-    time.sleep(2)
-    soup = BeautifulSoup(driver.page_source,'lxml')
-    comments = soup.find('div',class_= c_section)
-    if comments:
-        if len(comments) >= 1:
-            comments = len(comments) - 1
-    else:
-        comments = len(soup.find_all('ul', class_='_a9ym'))
-    if comments <= 14:
-        return comments
-    for i in range(50):
-        old_comments = comments
-        pyautogui.moveTo(1475, 330)
-        pyautogui.scroll(-1500)
-        pyautogui.moveTo(1385, 755)
- #       pyautogui.click()
-        time.sleep(1)
-        if i >= 20:
-            time.sleep(1)
-        if i >= 40:
-            time.sleep(1)
+    time.sleep(3)
+    for i in range(100):
+        soup_buttons = soup.find_all('div',class_='_abm0')
+        button = False
+        for pos, b in enumerate(soup_buttons):
+            if 'Weitere Kommentare laden' in str(b):
+                button = pos
+                break
+        if button:
+            buttons = driver.find_elements(By.CLASS_NAME,'_abm0')
+            try:
+                buttons[button].click()
+                time.sleep(1)
+                if i >= 20:
+                    time.sleep(1)
+                if i >= 40:
+                    time.sleep(1)
+            except:
+                pass
         if orig_page != driver.current_url:
             driver.get(orig_page)
-            return comments
-        c_soup = BeautifulSoup(driver.page_source,'lxml')
-        comments = len(c_soup.find_all('ul', class_='_a9ym'))
-        if comments <= 15:
-            new_comments = c_soup.find('div',class_= c_section)
-            if new_comments:
-                if len(new_comments) > comments:
-                    comments = len(new_comments) - 1
+            break
+        old_comments = comments
+        comments,soup = get_commentnumber(old_comments)
         if old_comments == comments:
             break
     return comments
+
+# Clicking with pyautogui led to many errors so I will scrape the correct higher comment counts later (with the post links)
+def get_commentnumber(old_comments = 0):
+    pyautogui.moveTo(1475, 330)
+    pyautogui.scroll(-1500)
+    pyautogui.moveTo(1385,755)
+    time.sleep(1)
+    soup = BeautifulSoup(driver.page_source,'lxml')
+    comments = len(soup.find_all('ul', class_='_a9ym'))
+    if comments == 0:
+        comments_elem = soup.find('div', class_='x78zum5 xdt5ytf x1iyjqo2')
+        if comments_elem:
+            comments = len(comments_elem)
+            if comments >= 1:
+                comments = comments - 1
+    if comments == 0:
+        comments = len(soup.find_all('span',class_='_ap3a _aaco _aacw _aacx _aad7 _aade'))
+        if comments >= 1:
+            comments -= 1
+    if comments <= old_comments:
+        return old_comments, soup
+    return comments, soup
 
 
 def scrape_post(post_url, p_name, upper_dt, lower_dt):
@@ -311,7 +316,7 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
         post_dt = datetime.strptime(post_dt_str, '%Y-%m-%d')
         if post_dt >= upper_dt:
             return post_dt, None
-        elif post_dt <= lower_dt or not p_name in post_text:
+        elif post_dt < lower_dt or not p_name in post_text:
             return None, None
         post_date = post_dt.strftime('%d.%m.%Y')
     content_elem = soup.find('div', class_='_a9zs')
@@ -357,101 +362,127 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
                 likes = likelink[0]
     if not likes or str(likes) == '':
         likes = int(0)
-    comments = get_commentnumber(soup, post_text)
-
+    comments = comment_crawler(driver, post_text)
     scraped_data = [post_date, likes, comments, image, video, calls, post_url, content]
     return post_dt, scraped_data
 
-########################################################################################################################
-# Settings for the post crawler
-source_file = "Profildaten_Energieanbieter_1.xlsx"
-df_source = pd.read_excel(source_file, sheet_name=network)
-df_source.set_index('ID',inplace=True)
-dt = datetime.now()
-dt_str = dt.strftime("%d.%m.%Y")
-lower_dt = datetime.strptime('2022-10-31','%Y-%m-%d')
-upper_dt = datetime.strptime('2023-11-01','%Y-%m-%d')
 
-all_data = []
-
-# start crawling the posts
-driver = start_browser(webdriver, Service, chromedriver_path)
-go_to_page(driver, startpage)
-login(cred.username_insta, cred.password_insta)
-
-# Loop
-for id, row in df_source.iterrows():
-    data_per_company = []
-    url = str(row['url'])
-    company = row['Anbieter']
-    p_name = row['Profilname']
-    posts = str(row['last post'])
+def check_conditions(id, row,start_at=0):
+    if id < start_at:      # If you want to skip some rows
+        return True
+    posts = str(row['last_post'])
     if len(url) < 10 or len(posts) <= 4 or 'Keine Beiträge' in posts:
         print([id, p_name, '', dt_str] + [url])
-        continue
-    driver.get(url)
-    time.sleep(4)
-    post_url = clickOnFirst(driver.current_url)
-    if not post_url:
-        print([id, p_name, '', dt_str] + [post_url])
-        continue
-    p_num = 0
-    while True:
-        post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
-        if not post_dt:
-            break
-        if post_dt >= upper_dt:
-            post_url = nextPost(post_url)
-            if not post_url:
-                break
-            continue
-        p_num += 1
-        full_row = [id, p_name, p_num, dt_str] + scraped_data
-        data_per_company.append(full_row)
-        if p_num == 1000:
-            break
-        post_url = nextPost(driver.current_url)
-        if not post_url:
-#            print([id, p_name, p_num, dt_str] + ['No more Posts'])
-            break
-    all_data += data_per_company
-
-
-# Create a DataFrame with all posts
-header1 = ['ID_A', 'Profilname', 'ID_P', 'Datum_Erhebung', 'Datum_Beitrag']
-header2 = ['Likes', 'Kommentare', 'Bild', 'Video', 'Aufrufe', 'Link', 'Content']
-dfPosts = pd.DataFrame(all_data, columns=header1 + header2)
-
-# Export dfPosts to Excel (with the current time)
-dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-file_name = 'Beiträge_' + network + '_' + dt_str_now + '.xlsx'
-dfPosts.to_excel(file_name)
+        return False,
+    try:
+        last_datestr = extract_text(row['last_post'])
+        last_dt = datetime.strptime(last_datestr, "%d.%m.%Y")
+        if (lower_dt - timedelta(days=31)) > last_dt:
+            return True
+    except:
+        return False
 
 ########################################################################################################################
-# Adding the like count and comment count for exceptional posts
-fill_data = []
-source_file = 'Beiträge_Instagram2023-11-23_aktuell.xlsx'
-df_fillc = pd.read_excel(source_file)
 
-for id, row in df_fillc.iterrows():
-    comments = row['Kommentare']
-    likes = row['Likes']
-    if not comments == 15 and not 'http' in str(likes):
-        fill_data.append([id,row['ID_A'], likes, comments])
-        continue
-    if 'http' in str(likes):
-        driver.get(str(likes))
-        time.sleep(1)
-        likes = len(driver.find_elements('xpath', "//*[text()='Folgen']"))
-    if comments == 15:
-        driver.get(row['Link'])
-        time.sleep(2)
-        soup = BeautifulSoup(driver.page_source, 'lxml')
-        post_text = get_visible_text(Comment, soup)
-        comments = get_commentnumber(soup, post_text)
-    fill_data.append([id, row['ID_A'], likes, comments])
+# Post Crawler
+if __name__ == '__main__':
+    # Settings for the post crawler
+    os.chdir(path_to_crawler_functions)
+    from crawler_functions import *
+    import credentials_file as cred
+    os.chdir(file_path)
+    file ='Profile_' + platform + '_2024'
+    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
 
-df_filled = pd.DataFrame(fill_data, columns=['id','ID_A', 'Likes', 'Kommentare'])
-df_filled.to_excel('filled_Likes_comments.xlsx')
-print('Done')
-driver.quit()
+    # Driver and Browser setup
+    all_data = []
+    driver = start_browser(webdriver, Service, chromedriver_path)
+    go_to_page(driver, startpage)
+    login(cred.username_insta, cred.password_insta)
+
+    # Loop
+    for id, row in df_source.iterrows():
+        url = str(row['url'])
+        p_name = str(row['profile_name'])
+        skip = check_conditions(id,row,start_at=34)
+        if skip:
+            continue
+
+ #       if id % 23 == 0:    # Restart the browser after 15 profiles
+  #          driver.quit()
+ #           driver = start_browser(webdriver, Service, chromedriver_path)
+ #           go_to_page(driver, startpage)
+  #          time.sleep(2)
+ #           login(cred.username_insta, cred.password_insta)
+        data_per_company = []
+        driver.get(url)
+        time.sleep(4)
+        post_url = clickOnFirst(driver.current_url)
+        if not post_url:
+            print([id, p_name, '', dt_str] + [post_url])
+            continue
+        p_num = 0
+        while True:
+            post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
+            if not post_dt:
+                break
+            if post_dt >= upper_dt:
+                post_url = nextPost(post_url)
+                if not post_url:
+                    break
+                continue
+            p_num += 1
+            full_row = [id, p_name, p_num, dt_str] + scraped_data
+            data_per_company.append(full_row)
+            if p_num > 1000:
+                break
+            post_url = nextPost(driver.current_url)
+            if not post_url:
+    #            print([id, p_name, p_num, dt_str] + ['No more Posts'])
+                break
+        all_data += data_per_company
+
+        # Create a DataFrame with all posts
+        header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
+        header2 = ['Likes', 'Kommentare', 'Bild', 'Video', 'Aufrufe', 'Link', 'Content']
+        dfPosts = pd.DataFrame(all_data, columns=header1 + header2)
+
+        # Export dfPosts to Excel (with the current time)
+        dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+        file_name = 'Beiträge_' + platform + '_' + dt_str_now + '.xlsx'
+        dfPosts.to_excel(file_name)
+        break
+
+    driver.quit()
+
+print(all_data[-1])
+print(data_per_company[-1])
+########################################################################################################################
+if __name__ == '__main__':
+    # Adding the like count and comment count for exceptional posts
+    fill_data = []
+    source_file = 'Beiträge_Instagram2023-11-23_aktuell.xlsx'
+    df_fillc = pd.read_excel(source_file)
+
+    for id, row in df_fillc.iterrows():
+        comments = row['Kommentare']
+        likes = row['Likes']
+        if comments > 10 and not 'http' in str(likes):
+            fill_data.append([id,row['ID_A'], likes, comments])
+            continue
+        if 'http' in str(likes):
+            driver.get(str(likes))
+            time.sleep(1)
+            likes = len(driver.find_elements('xpath', "//*[text()='Folgen']"))
+        if comments == 15:
+            driver.get(row['Link'])
+            time.sleep(2)
+            soup = BeautifulSoup(driver.page_source, 'lxml')
+            post_text = get_visible_text(Comment, soup)
+            comments = get_commentnumber(soup, post_text)
+        fill_data.append([id, row['ID_A'], likes, comments])
+
+    df_filled = pd.DataFrame(fill_data, columns=['id','ID_A', 'Likes', 'Kommentare'])
+    df_filled.to_excel('filled_Likes_comments.xlsx')
+    print('Done')
+    driver.quit()
