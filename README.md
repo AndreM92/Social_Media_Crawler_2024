@@ -1,8 +1,13 @@
 # Social_Media_Crawler_2024
 This repository contains my new Social Media Crawler for Data Analytics <br>
 (Written for German social media pages, but easily transferable to other languages) <br>
-All crawlers are written in Python. I primarily use Selenium as the framework, 
-but I've also created some smaller crawlers using Playwright.
+All Crawlers are written in Python. I primarily use Selenium as the framework, 
+but I've also created some smaller Crawlers using Playwright.
+<br>
+<br>
+Currently, the project includes the Social Media platforms Facebook, Instagram, LinkedIn, TikTok, X/Twitter
+and YouTube. However, functionalities such as capturing comments are not fully implemented in some cases. 
+The updates for these features will be implemented in the coming days. <br>
 
 ## The functionalities of the crawlers include:
 - Automated logins
@@ -21,7 +26,6 @@ requiring me to address this issue through less precise methods
 such as text scraping, screenshots, and image reading (utilizing Pillow/Pytesseract)
 - the links are partially provided only in XML format: 
 "use xlink:href="#gid111" xmlns:xlink="http://www.w3.org/1999/xlink"></use"
-<br>
 Consequently, I am unable to scrape their text content directly. Although I devised a method 
 to associate visible dates with posts, this approach introduces some inaccuracies.
 - Certain crawlers necessitate a headed browser due to my use of PyAutoGUI 
