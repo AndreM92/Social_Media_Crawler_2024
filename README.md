@@ -1,6 +1,8 @@
-# Social_Media_Crawler_2023
+# Social_Media_Crawler_2024
 This repository contains my new Social Media Crawler for Data Analytics <br>
-(Written for German social media pages, but easily transferable to other languages)
+(Written for German social media pages, but easily transferable to other languages) <br>
+All crawlers are written in Python. I primarily use Selenium as the framework, 
+but I've also created some smaller crawlers using Playwright.
 
 ## The functionalities of the crawlers include:
 - Automated logins
@@ -25,5 +27,5 @@ to associate visible dates with posts, this approach introduces some inaccuracie
 - Certain crawlers necessitate a headed browser due to my use of PyAutoGUI 
 to navigate around bot blocking and handle exceptional page settings.
 
-I appreciate any suggested solutions to overcome these seemingly insurmountable challenges.
+I appreciate any suggested solutions to overcome these challenges.
 
