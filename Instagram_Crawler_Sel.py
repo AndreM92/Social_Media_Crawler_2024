@@ -195,20 +195,14 @@ def clickOnFirst(startlink):
     # Second post to avoid pinned comments
     posts = driver.find_elements(By.CLASS_NAME, '_aagw')
     if len(posts) >= 2:
-        posts[1].click()
-        time.sleep(2)
-        post_url = driver.current_url
-        if post_url != startlink and 'instagram.com' in post_url:
-            return post_url
-    soup = BeautifulSoup(driver.page_source,'html.parser')
-    links = [str(l['href']) for l in soup.find_all('a',href=True)]
-    p_links = ['https://www.instagram.com' + l for l in links if '/p/' in l and not 'http' in l]
-    if len(p_links) >= 2:
-        driver.get(p_links[1])
-        time.sleep(2)
-        post_url = driver.current_url
-        if post_url != startlink and 'instagram.com' in post_url:
-            return post_url
+        try:
+            posts[1].click()
+            time.sleep(2)
+            post_url = driver.current_url
+            if post_url != startlink and 'instagram.com' in str(post_url):
+                return post_url
+        except:
+            pass
     pyautogui.moveTo(1122, 1000)
     pyautogui.click()
     time.sleep(2)
@@ -325,13 +319,11 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
         if len(post_text) >= 1200:
             content = post_text
     if soup.find('video'):
-        video = 1
-        image = 0
+        video, image = 1,0
     else:
         imagelinks = [l['src'] for l in soup.find('div', class_='_aagv').find_all('img', src=True)]
         if len(imagelinks) >= 1:
-            video = 0
-            image = 1
+            video, image = 0,1
     react_text = extract_text(soup.find('section', class_='_ae5m _ae5n _ae5o'))
     if not react_text:
         react_text = extract_text(soup.find('section', class_='x12nagc'))
@@ -343,8 +335,7 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
                 break
     if react_text:
         if 'Aufrufe' in react_text:
-            video = 1
-            image = 0
+            video, image = 1,0
             calls = extract_number(react_text)
             show_likes_button = driver.find_element(By.CLASS_NAME, '_aauw')
             if show_likes_button:
@@ -358,6 +349,11 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
             # This alternative like display will be scraped with the alternative comment display later
             likelink = ['https://www.instagram.com/' + l['href'] for l in soup.find_all('a', href=True) if
                         'liked' in l['href']]
+            if len(likelink) == 0:
+                time.sleep(1)
+                soup = BeautifulSoup(driver.page_source, 'lxml')
+                likelink = ['https://www.instagram.com/' + l['href'] for l in soup.find_all('a', href=True) if
+                            'liked' in l['href']]
             if len(likelink) >= 1:
                 likes = likelink[0]
     if not likes or str(likes) == '':
@@ -401,26 +397,35 @@ if __name__ == '__main__':
     login(cred.username_insta, cred.password_insta)
 
     # Loop
-    for id, row in df_source.iterrows():
+    for count, row in df_source.iterrows():
+        id = str(row['ID'])
         url = str(row['url'])
         p_name = str(row['profile_name'])
-        skip = check_conditions(id,row,start_at=34)
+        skip = check_conditions(count,row,start_at=0)
         if skip:
             continue
-
- #       if id % 23 == 0:    # Restart the browser after 15 profiles
-  #          driver.quit()
- #           driver = start_browser(webdriver, Service, chromedriver_path)
- #           go_to_page(driver, startpage)
-  #          time.sleep(2)
- #           login(cred.username_insta, cred.password_insta)
-        data_per_company = []
-        driver.get(url)
-        time.sleep(4)
-        post_url = clickOnFirst(driver.current_url)
+        # This way I can handle multiple errors
+        try:
+            driver.get(url)
+            time.sleep(4)
+            post_url = clickOnFirst(driver.current_url)
+        except:
+            post_url = None
+            pass
         if not post_url:
-            print([id, p_name, '', dt_str] + [post_url])
-            continue
+            driver.quit()
+            time.sleep(5)
+            driver = start_browser(webdriver, Service, chromedriver_path)
+            go_to_page(driver, startpage)
+            login(cred.username_insta2, cred.password_insta2)
+            time.sleep(1)
+            driver.get(url)
+            time.sleep(5)
+            post_url = clickOnFirst(driver.current_url)
+            if not post_url:
+                print(count, [id, p_name, '', dt_str, post_url])
+                continue
+        data_per_company = []
         p_num = 0
         while True:
             post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
@@ -438,7 +443,6 @@ if __name__ == '__main__':
                 break
             post_url = nextPost(driver.current_url)
             if not post_url:
-    #            print([id, p_name, p_num, dt_str] + ['No more Posts'])
                 break
         all_data += data_per_company
 
@@ -451,35 +455,43 @@ if __name__ == '__main__':
         dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
         file_name = 'Beiträge_' + platform + '_' + dt_str_now + '.xlsx'
         dfPosts.to_excel(file_name)
-        break
 
     driver.quit()
 
-print(all_data[-1])
-print(data_per_company[-1])
 ########################################################################################################################
+# Date (and comment count) correction
 if __name__ == '__main__':
     # Adding the like count and comment count for exceptional posts
-    fill_data = []
-    source_file = 'Beiträge_Instagram2023-11-23_aktuell.xlsx'
+    os.chdir(path_to_crawler_functions)
+    from crawler_functions import *
+    import credentials_file as cred
+    os.chdir(file_path)
+    source_file = 'Beiträge_Instagram_zu_korrigieren_1.xlsx'
     df_fillc = pd.read_excel(source_file)
+
+    fill_data = []
+    driver = start_browser(webdriver, Service, chromedriver_path)
+    go_to_page(driver, startpage)
+    login(cred.username_insta, cred.password_insta)
 
     for id, row in df_fillc.iterrows():
         comments = row['Kommentare']
         likes = row['Likes']
-        if comments > 10 and not 'http' in str(likes):
-            fill_data.append([id,row['ID_A'], likes, comments])
-            continue
         if 'http' in str(likes):
             driver.get(str(likes))
-            time.sleep(1)
+            time.sleep(2)
             likes = len(driver.find_elements('xpath', "//*[text()='Folgen']"))
-        if comments == 15:
+            if likes == 0:
+                time.sleep(1)
+                soup = BeautifulSoup(driver.page_source,'html.parser')
+                likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
+                print(likes)
+        if (not comments and str(comments)[0] != '0') #or 15 >= comments >= 10:
             driver.get(row['Link'])
             time.sleep(2)
             soup = BeautifulSoup(driver.page_source, 'lxml')
             post_text = get_visible_text(Comment, soup)
-            comments = get_commentnumber(soup, post_text)
+            comments = comment_crawler(driver, post_text)
         fill_data.append([id, row['ID_A'], likes, comments])
 
     df_filled = pd.DataFrame(fill_data, columns=['id','ID_A', 'Likes', 'Kommentare'])
