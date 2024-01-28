@@ -6,6 +6,8 @@ import selenium.webdriver.support.expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 
 import pyautogui
+# Be careful with that!
+pyautogui.FAILSAFE = False
 
 import requests
 from bs4 import BeautifulSoup
@@ -21,7 +23,8 @@ from datetime import datetime, timedelta
 import os
 # Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
-path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Scraper\Social_Media_Crawler_2023"
+
+path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
 file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
 source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
 branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
@@ -262,4 +265,84 @@ def getVideolinks(url):
 #    print(f'Anzahl der Videolinks: {len(videolinks)}')
     return videolinks
 
+def check_conditions(id, row, start_at=0):
+    if id < start_at:      # If you want to skip some rows
+        return True
+    posts = str(row['last_post'])
+    if len(url) < 10 or len(posts) <= 4 or 'Keine Beiträge' in posts:
+        print([id, p_name, '', dt_str] + [url])
+        return False,
+    try:
+        last_datestr = extract_text(row['last_post'])
+        last_dt = datetime.strptime(last_datestr, "%d.%m.%Y")
+        if (lower_dt - timedelta(days=31)) > last_dt:
+            return True
+    except:
+        return False
+
+def crawl_all_videos(dt_str, row, videolinks):
+    id = str(row['ID'])
+    p_name = str(row['profile_name'])
+    data_per_company = []
+    id_p = 0
+    for link in videolinks:
+        scraped_data = crawlVideo(link)
+        post_date = scraped_data[0]
+        try:
+            post_dt = datetime.strptime(post_date, "%d.%m.%Y")
+            if post_dt >= upper_dt:
+                continue
+            elif post_dt < lower_dt:
+                return data_per_company
+        except:
+            pass
+        id_p += 1
+        full_row = [id, p_name, id_p, dt_str] + scraped_data
+        data_per_company.append(full_row)
+        print(full_row[:-1])
+    return data_per_company
+
+########################################################################################################################
+
+# Post Crawler
+if __name__ == '__main__':
+    # Settings for the post crawler
+    os.chdir(path_to_crawler_functions)
+    from crawler_functions import *
+    import credentials_file as cred
+    os.chdir(file_path)
+    file ='Profile_' + platform + '_2024'
+    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
+
+    # Driver and Browser setup
+    all_data = []
+    driver = start_browser(webdriver, Service, chromedriver_path)
+    go_to_page(driver, startpage)
+
+    # Iterate over the companies
+    for count, row in df_source.iterrows():
+        url = str(row['url'])
+        skip = check_conditions(count,row,start_at=0)
+        if skip:
+            continue
+
+        videolinks = getVideolinks(url)
+        if len(videolinks) == 0:
+            print([count, str(row['ID']), 'Page not available'])
+            continue
+
+        data_per_company = crawl_all_videos(dt_str, row, videolinks)
+        all_data += data_per_company
+
+        # Create a DataFrame with all posts
+        header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
+        header2 = ['Titel', 'Aufrufe', 'Likes', 'Kommentare', 'Link', 'Content']
+        dfPosts = pd.DataFrame(all_data, columns=header1 + header2)
+
+        # Export dfPosts to Excel (with the current time)
+        dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+        file_name = 'Beiträge_' + platform + '_' + dt_str_now + '.xlsx'
+        dfPosts.to_excel(file_name)
+
+    driver.quit()
 ########################################################################################################################
