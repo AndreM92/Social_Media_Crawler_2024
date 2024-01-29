@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 import os
 # Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
-path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Scraper\Social_Media_Crawler_2023"
+path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
 file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
 source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
 branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
@@ -40,7 +40,7 @@ def scrapeProfile(url):
     pagetext = get_visible_text(Comment, soup)
     if not pagetext or len(pagetext) <= 100 or 'Verifiziere, um fortzufahren' in pagetext:
         # Solve the captcha manually
-        time.sleep(6)
+        time.sleep(7)
         pagetext = get_visible_text(Comment, soup)
     header_elems = soup.find_all('h1',{'data-e2e':'user-title'})
     if len(header_elems) == 0:
@@ -102,7 +102,7 @@ if __name__ == '__main__':
 
     # Start crawling
     data = []
-    driver = start_browser(webdriver, Service, chromedriver_path)
+    driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
 
     # Iterating over the companies
@@ -136,4 +136,108 @@ if __name__ == '__main__':
     dt_str_now = datetime.now().strftime("%Y-%m-%d")
     recent_filename = 'Profile_' + platform + '_' + dt_str_now + '.xlsx'
     df_profiles.to_excel(recent_filename)
+########################################################################################################################
 
+# Post Crawler functions
+
+def check_conditions(id, row, start_at=0):
+    if id < start_at:      # If you want to skip some rows
+        return True
+    p_name = str(row['profile_name'])
+    if len(p_name) == 0 or p_name.lower() == 'nan' or p_name == 'None':
+        return False
+    posts = str(row['last_post'])
+    if len(url) < 10 or len(posts) <= 4 or 'Keine Beiträge' in posts:
+        print([id, p_name, '', dt_str] + [url])
+        return False
+    try:
+        last_datestr = extract_text(row['last_post'])
+        last_dt = datetime.strptime(last_datestr, "%d.%m.%Y")
+        if (lower_dt - timedelta(days=31)) > last_dt:
+            return True
+    except:
+        return False
+
+
+def get_videolinks(driver, url):
+    driver.get(url)
+    time.sleep(3)
+    soup = BeautifulSoup(driver.page_source, 'lxml')
+    pagetext = get_visible_text(Comment, soup)
+    if 'Puzzleteil' in pagetext:
+        print('Solve the captcha manually')
+        time.sleep(7)
+
+    video_first_info = []
+    # Scroll down
+    safety_counter = 0
+    while safety_counter < 3:       #30
+        start_height = driver.execute_script("return document.body.scrollHeight")
+        driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
+        time.sleep(1)
+        end_height = driver.execute_script("return document.body.scrollHeight")
+        print(start_height, end_height)
+        if start_height == end_height:
+            break
+        safety_counter += 1
+    soup = BeautifulSoup(driver.page_source, 'lxml')
+    video_containers = soup.find_all('div',{'data-e2e':'user-post-item'})
+    if not video_containers:
+        return None
+    # Iterate over the video containers
+    for v in video_containers:
+        views, link = '', ''
+        links = [l['href'] for l in v.find_all('a',href=True) if 'video' in str(l['href'])]
+        if len(links) >= 1:
+            link = links[0]
+        view_text = get_visible_text(Comment,v)
+        if ' ' in view_text:
+            view_text = view_text.split(' ')[0].strip()
+        views = extract_every_number(view_text)
+        video = [views, link]
+        video_first_info.append(video)
+    video_first_info = sorted(video_first_info, key=lambda link: link[1], reverse=True)
+    return video_first_info
+########################################################################################################################
+
+# Post Crawler
+if __name__ == '__main__':
+    # Settings for the post crawler
+    os.chdir(path_to_crawler_functions)
+    from crawler_functions import *
+    import credentials_file as cred
+    os.chdir(file_path)
+    file ='Profile_' + platform + '_2024'
+    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
+
+    # Driver and Browser setup
+    all_data = []
+    driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
+    go_to_page(driver, startpage)
+
+    # Iterate over the companies
+    for count, row in df_source.iterrows():
+        url = str(row['url'])
+        skip = check_conditions(count,row,start_at=0)
+        if skip:
+            continue
+        break
+
+        video_first_info = get_videolinks(driver, url)
+
+        for count, info in enumerate(video_first_info):
+#            print(count,info)
+            link = videolinks[0]
+            if count == 0:
+                go_to_page(driver, link)
+            else:
+                driver.get(link)
+                time.sleep(2)
+            soup = BeautifulSoup(driver.page_source, 'lxml')
+            name_date = extract_text(soup.find('span', {'data-e2e': 'browser-nickname'}))
+            if '·' in name_date:
+                date_str = name_date.split('·')[-1].strip()
+                last_dt, last_post = get_approx_date(datetime.now().date(), date_str)
+
+#    if len(videolinks) == 0:
+#        return [p_name, pagelikes, follower, following, last_post, url, userlink, desc]
