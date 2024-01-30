@@ -39,8 +39,7 @@ def scrapeProfile(url):
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = get_visible_text(Comment, soup)
     if not pagetext or len(pagetext) <= 100 or 'Verifiziere, um fortzufahren' in pagetext:
-        # Solve the captcha manually
-        time.sleep(7)
+        input('Press ENTER after solving the captcha')
         pagetext = get_visible_text(Comment, soup)
     header_elems = soup.find_all('h1',{'data-e2e':'user-title'})
     if len(header_elems) == 0:
@@ -72,8 +71,7 @@ def scrapeProfile(url):
     links = [l['href'] for l in soup.find_all('a',href=True)]
     videolinks = list(set([l for l in links if 'video' in str(l)]))
     if len(videolinks) == 0:
-        # Solve the captcha manually
-        time.sleep(6)
+        input('Press ENTER after solving the captcha')
         links = [l['href'] for l in soup.find_all('a', href=True)]
         videolinks = list(set([l for l in links if 'video' in str(l)]))
     if len(videolinks) == 0:
@@ -148,7 +146,7 @@ def check_conditions(id, row, start_at=0):
         return False
     posts = str(row['last_post'])
     if len(url) < 10 or len(posts) <= 4 or 'Keine Beiträge' in posts:
-        print([id, p_name, '', dt_str] + [url])
+        print([id, p_name, url])
         return False
     try:
         last_datestr = extract_text(row['last_post'])
@@ -165,11 +163,10 @@ def get_videolinks(driver, url):
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = get_visible_text(Comment, soup)
     if 'Puzzleteil' in pagetext:
-        print('Solve the captcha manually')
-        time.sleep(7)
+        input('Press ENTER after solving the captcha')
 
     video_first_info = []
-    # Scroll down
+    # Scroller
     safety_counter = 0
     while safety_counter < 3:       #30
         start_height = driver.execute_script("return document.body.scrollHeight")
@@ -198,6 +195,46 @@ def get_videolinks(driver, url):
         video_first_info.append(video)
     video_first_info = sorted(video_first_info, key=lambda link: link[1], reverse=True)
     return video_first_info
+
+
+def scrape_post(count, p_name, video_info):
+    views = video_info[0]
+    link = video_info[1]
+    if count == 0:
+        go_to_page(driver, link)
+    else:
+        driver.get(link)
+        time.sleep(2)
+    soup = BeautifulSoup(driver.page_source, 'lxml')
+    date_str = str(extract_text(soup.find('span', {'data-e2e': 'browser-nickname'})))
+    if (not p_name[:5] in date_str.lower() and not p_name[-4:] in date_str.lower()) or \
+            not (not p_name[:5].lower() in link.lower() and not p_name[-4:].lower() in link.lower()):
+        return None, None
+    if '·' in date_str:
+        date_str = date_str.split('·')[-1].strip()
+    date_dt, date_str = get_approx_date(datetime.now(), date_str)
+    if not date_dt:
+        return None, None
+    likes, comments, shares, dms = np.zeros(4)
+    react_counts = soup.find_all('strong')
+    for r in react_counts:
+        line = str(r)
+        number = extract_every_number(r.text)
+        if 'like' in line:
+            likes = number
+        elif 'comment' in line:
+            comments = number
+        elif 'share' in line:
+            shares = number
+        elif 'undefined-count' in line:
+            dms = number
+    content_desc = extract_text(soup.find('h1', {'data-e2e': 'browse-video-desc'}))
+    content_music = extract_text(soup.find('h4', {'data-e2e': 'browse-music'}))
+    content = content_desc + ' ' + content_music
+    if len(content) <= 10:
+        content = get_visible_text(Comment, soup.find('div', class_='css-r4nwrj-DivVideoInfoContainer eqrezik3'))
+        content = content.replace('mehr ','').strip()
+    return date_dt, [date_str, likes, comments, shares, dms, views, link, content]
 ########################################################################################################################
 
 # Post Crawler
@@ -208,7 +245,7 @@ if __name__ == '__main__':
     import credentials_file as cred
     os.chdir(file_path)
     file ='Profile_' + platform + '_2024'
-    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
+    df_source, dt, crawl_datestr, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
 
     # Driver and Browser setup
     all_data = []
@@ -217,27 +254,66 @@ if __name__ == '__main__':
 
     # Iterate over the companies
     for count, row in df_source.iterrows():
+        id = str(row['ID'])
         url = str(row['url'])
+        p_name = str(row['profile_name'])
         skip = check_conditions(count,row,start_at=0)
         if skip:
             continue
-        break
+        video_info_list = get_videolinks(driver, url)
+        if not video_info_list or len(video_info_list) == 0:
+            input('Press ENTER after solving website problems')
+            video_info_list = get_videolinks(driver, url)
+        if not video_info_list or len(video_info_list) == 0:
+            continue
+        data_per_company = []
+        id_p = 0
+        for count, video_info in enumerate(video_info_list[20:25]):
+            date_dt, scraped_postdata = scrape_post(count, p_name, video_info)
+            print(scraped_postdata)
+            if not date_dt:
+                print('Date not found')
+                continue
+            if date_dt >= upper_dt:
+                continue
+            if date_dt < lower_dt:
+                break
+            id_p += 1
+            full_row = [id, p_name, id_p, crawl_datestr] + scraped_postdata
+            data_per_company.append(full_row)
 
-        video_first_info = get_videolinks(driver, url)
+    all_data += data_per_company
 
-        for count, info in enumerate(video_first_info):
-#            print(count,info)
-            link = videolinks[0]
-            if count == 0:
-                go_to_page(driver, link)
-            else:
-                driver.get(link)
-                time.sleep(2)
-            soup = BeautifulSoup(driver.page_source, 'lxml')
-            name_date = extract_text(soup.find('span', {'data-e2e': 'browser-nickname'}))
-            if '·' in name_date:
-                date_str = name_date.split('·')[-1].strip()
-                last_dt, last_post = get_approx_date(datetime.now().date(), date_str)
+    # Create a DataFrame with all posts
+    header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
+    header2 = ['Likes', 'Kommentare', 'Shares', 'DMs', 'Aufrufe', 'Link', 'Content']
+    dfPosts = pd.DataFrame(all_data, columns=header1 + header2)
+
+    # Export dfPosts to Excel (with the current time)
+    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+    file_name = 'Beiträge_' + platform + dt_str_now + '.xlsx'
+    dfPosts.to_excel(file_name)
+
+    driver.quit()
+########################################################################################################################
+# content = soup.find('div', class_='tiktok-r4nwrj-DivVideoInfoContainer eqrezik2')
+if not content:
+    content = soup.find('div', class_='tiktok-1nst91u-DivMainContent e1mecfx01')
+if content:
+    if len(content) == 1:
+        content = content.text.replace('\s+', ' ').replace('mehr', '').strip()
+    elif len(content) > 1:
+        content = ' '.join([c.text.strip() for c in content]).replace('\s+', ' ').replace('mehr', '').strip()
+header = soup.find('span', class_='tiktok-1kcycbd-SpanOtherInfos evv7pft3')
+if not header:
+    soup.find('span', class_='tiktok-gg0x0w-SpanOtherInfos evv7pft3')
+if header:
+    date = [h.text for h in header][-1]
+
+react_bar = soup.find('div', class_='tiktok-79f36w-DivActionBarWrapper eqrezik7')
+if not react_bar:
+    react_bar = soup.find('div', class_='tiktok-1452egd-DivFlexCenterRow-StyledWrapper ehlq8k32')
+
 
 #    if len(videolinks) == 0:
 #        return [p_name, pagelikes, follower, following, last_post, url, userlink, desc]
