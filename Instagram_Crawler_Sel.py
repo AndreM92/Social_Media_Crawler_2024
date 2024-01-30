@@ -430,6 +430,9 @@ if __name__ == '__main__':
         while True:
             post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
             if not post_dt:
+                if p_num == 0:
+                    post_url = nextPost(driver.current_url)
+                    continue
                 break
             if post_dt >= upper_dt:
                 post_url = nextPost(post_url)
@@ -474,24 +477,49 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
     login(cred.username_insta, cred.password_insta)
 
+    corr = 0
     for id, row in df_fillc.iterrows():
+        if id <= 243:
+            continue
+
+        # Restart the driver after 100 corrections (or based on the id)
+        if corr > 100:
+        #if id > 0 and id % 100 == 0:
+            driver.quit()
+            time.sleep(5)
+            driver = start_browser(webdriver, Service, chromedriver_path)
+            go_to_page(driver, startpage)
+            login(cred.username_insta, cred.password_insta)
+            time.sleep(1)
         comments = row['Kommentare']
         likes = row['Likes']
         if 'http' in str(likes):
             driver.get(str(likes))
             time.sleep(2)
+            status_code = requests.head(driver.current_url).status_code
+            if status_code != 200:
+                driver.get(str(likes))
+                time.sleep(5)
             likes = len(driver.find_elements('xpath', "//*[text()='Folgen']"))
+            if likes == 0:
+                input('Press ENTER after solving website issues')
+                likes = len(driver.find_elements('xpath', "//*[text()='Folgen']"))
             if likes == 0:
                 time.sleep(1)
                 soup = BeautifulSoup(driver.page_source,'html.parser')
                 likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
-                print(likes)
-        if (not comments and str(comments)[0] != '0') #or 15 >= comments >= 10:
+                corr += 1
+        if ((not comments and not '0' in str(comments)) or str(comments) == 'nan' or str(comments) == ''): #or 15 >= comments >= 10
             driver.get(row['Link'])
             time.sleep(2)
+            status_code = requests.head(driver.current_url).status_code
+            if status_code != 200:
+                driver.get(row['Link'])
+                time.sleep(5)
             soup = BeautifulSoup(driver.page_source, 'lxml')
             post_text = get_visible_text(Comment, soup)
             comments = comment_crawler(driver, post_text)
+            corr += 1
         fill_data.append([id, row['ID_A'], likes, comments])
 
     df_filled = pd.DataFrame(fill_data, columns=['id','ID_A', 'Likes', 'Kommentare'])
