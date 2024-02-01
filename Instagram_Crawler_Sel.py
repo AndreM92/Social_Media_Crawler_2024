@@ -190,7 +190,6 @@ if __name__ == '__main__':
 ########################################################################################################################
 
 # post_crawler functions
-
 def clickOnFirst(startlink):
     # Second post to avoid pinned comments
     posts = driver.find_elements(By.CLASS_NAME, '_aagw')
@@ -462,7 +461,8 @@ if __name__ == '__main__':
     driver.quit()
 
 ########################################################################################################################
-# Date (and comment count) correction
+
+# Like (and comment count) correction
 if __name__ == '__main__':
     # Adding the like count and comment count for exceptional posts
     os.chdir(path_to_crawler_functions)
@@ -479,11 +479,8 @@ if __name__ == '__main__':
 
     corr = 0
     for id, row in df_fillc.iterrows():
-        if id <= 243:
-            continue
-
-        # Restart the driver after 100 corrections (or based on the id)
-        if corr > 100:
+        # Restart the driver after 100 corrections
+        if corr > 1000:
         #if id > 0 and id % 100 == 0:
             driver.quit()
             time.sleep(5)
@@ -494,14 +491,21 @@ if __name__ == '__main__':
         comments = row['Kommentare']
         likes = row['Likes']
         if 'http' in str(likes):
-            driver.get(str(likes))
-            time.sleep(2)
+            try:
+                driver.get(str(likes))
+                time.sleep(2)
+            except:
+                pyautogui.moveTo(1277, 587)
+                pyautogui.click()
             status_code = requests.head(driver.current_url).status_code
             if status_code != 200:
                 driver.get(str(likes))
                 time.sleep(5)
             likes = len(driver.find_elements('xpath', "//*[text()='Folgen']"))
             if likes == 0:
+                pyautogui.moveTo(1277, 587)
+                pyautogui.click()
+                time.sleep(3)
                 input('Press ENTER after solving website issues')
                 likes = len(driver.find_elements('xpath', "//*[text()='Folgen']"))
             if likes == 0:
@@ -510,14 +514,25 @@ if __name__ == '__main__':
                 likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
                 corr += 1
         if ((not comments and not '0' in str(comments)) or str(comments) == 'nan' or str(comments) == ''): #or 15 >= comments >= 10
-            driver.get(row['Link'])
-            time.sleep(2)
+            try:
+                driver.get(row['Link'])
+                time.sleep(2)
+            except:
+                pyautogui.moveTo(1277, 587)
+                pyautogui.click()
             status_code = requests.head(driver.current_url).status_code
             if status_code != 200:
                 driver.get(row['Link'])
                 time.sleep(5)
             soup = BeautifulSoup(driver.page_source, 'lxml')
             post_text = get_visible_text(Comment, soup)
+            if len(str(post_text)) <= 200:
+                pyautogui.moveTo(1277, 587)
+                pyautogui.click()
+                driver.get(row['Link'])
+                time.sleep(3)
+                soup = BeautifulSoup(driver.page_source, 'lxml')
+                post_text = get_visible_text(Comment, soup)
             comments = comment_crawler(driver, post_text)
             corr += 1
         fill_data.append([id, row['ID_A'], likes, comments])
