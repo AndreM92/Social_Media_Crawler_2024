@@ -247,7 +247,7 @@ def comment_crawler(driver, post_text):
     comments, soup = get_commentnumber()
     if comments <= 5:
         return comments
-    time.sleep(3)
+    time.sleep(1)
     for i in range(100):
         soup_buttons = soup.find_all('div',class_='_abm0')
         button = False
@@ -406,6 +406,7 @@ if __name__ == '__main__':
         # This way I can handle multiple errors
         try:
             driver.get(url)
+            # webdriverwait
             time.sleep(4)
             post_url = clickOnFirst(driver.current_url)
         except:
@@ -417,7 +418,7 @@ if __name__ == '__main__':
             driver = start_browser(webdriver, Service, chromedriver_path)
             go_to_page(driver, startpage)
             login(cred.username_insta2, cred.password_insta2)
-            time.sleep(1)
+            time.sleep(3)
             driver.get(url)
             time.sleep(5)
             post_url = clickOnFirst(driver.current_url)
@@ -475,64 +476,59 @@ if __name__ == '__main__':
     fill_data = []
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
-    login(cred.username_insta, cred.password_insta)
+    login(cred.username_insta2, cred.password_insta2)
 
     corr = 0
     for id, row in df_fillc.iterrows():
         # Restart the driver after 100 corrections
-        if corr > 1000:
+        if corr > 0 and (corr % 150 == 0 or corr % 151 == 0):
         #if id > 0 and id % 100 == 0:
             driver.quit()
             time.sleep(5)
             driver = start_browser(webdriver, Service, chromedriver_path)
             go_to_page(driver, startpage)
             login(cred.username_insta, cred.password_insta)
-            time.sleep(1)
+            time.sleep(3)
         comments = row['Kommentare']
         likes = row['Likes']
         if 'http' in str(likes):
             try:
                 driver.get(str(likes))
-                time.sleep(2)
+                WebDriverWait(driver, 7).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'svg[aria-label="Instagram"]')))
             except:
-                pyautogui.moveTo(1277, 587)
-                pyautogui.click()
-            status_code = requests.head(driver.current_url).status_code
-            if status_code != 200:
-                driver.get(str(likes))
-                time.sleep(5)
+                try:
+                    pyautogui.moveTo(1277, 587)
+                    pyautogui.click()
+                    driver.get(str(likes))
+                    WebDriverWait(driver, 7).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, 'svg[aria-label="Instagram"]')))
+                except:
+                    input('Press ENTER after solving website issues')
+                    pass
             likes = len(driver.find_elements('xpath', "//*[text()='Folgen']"))
-            if likes == 0:
-                pyautogui.moveTo(1277, 587)
-                pyautogui.click()
-                time.sleep(3)
-                input('Press ENTER after solving website issues')
-                likes = len(driver.find_elements('xpath', "//*[text()='Folgen']"))
             if likes == 0:
                 time.sleep(1)
                 soup = BeautifulSoup(driver.page_source,'html.parser')
                 likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
-                corr += 1
+            corr += 1
         if ((not comments and not '0' in str(comments)) or str(comments) == 'nan' or str(comments) == ''): #or 15 >= comments >= 10
             try:
                 driver.get(row['Link'])
-                time.sleep(2)
+                WebDriverWait(driver, 7).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'svg[aria-label="Instagram"]')))
             except:
-                pyautogui.moveTo(1277, 587)
-                pyautogui.click()
-            status_code = requests.head(driver.current_url).status_code
-            if status_code != 200:
-                driver.get(row['Link'])
-                time.sleep(5)
+                try:
+                    pyautogui.moveTo(1277, 587)
+                    pyautogui.click()
+                    driver.get(row['Link'])
+                    WebDriverWait(driver, 7).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, 'svg[aria-label="Instagram"]')))
+                except:
+                    input('Press ENTER after solving website issues')
+                    pass
             soup = BeautifulSoup(driver.page_source, 'lxml')
             post_text = get_visible_text(Comment, soup)
-            if len(str(post_text)) <= 200:
-                pyautogui.moveTo(1277, 587)
-                pyautogui.click()
-                driver.get(row['Link'])
-                time.sleep(3)
-                soup = BeautifulSoup(driver.page_source, 'lxml')
-                post_text = get_visible_text(Comment, soup)
             comments = comment_crawler(driver, post_text)
             corr += 1
         fill_data.append([id, row['ID_A'], likes, comments])
