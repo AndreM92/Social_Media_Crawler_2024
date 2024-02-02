@@ -84,7 +84,7 @@ def go_to_page(driver, startpage):
         driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
         time.sleep(2)
         cookiebuttons = driver.find_elements('xpath', '//button[contains(., "ablehnen")]')
-    if len(cookiebuttons) == 0:
+    if len(cookiebuttons) == 0 and not 'instagram' in driver.current_url:
         cookiebuttons = driver.find_elements(By.TAG_NAME,'button')
     if len(cookiebuttons) >= 1:
         for c in cookiebuttons:
@@ -443,7 +443,11 @@ if __name__ == "__main__":
 ########################################################################################################################
 # Pyautogui Investigation process
 '''
+import pyautogui
 time.sleep(4)
 x,y = pyautogui.position()
 print(str(x)+ "," + str(y))
+time.sleep(4)
+pyautogui.moveTo(x,y)
+pyautogui.click()
 '''
