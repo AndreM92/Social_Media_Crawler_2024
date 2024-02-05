@@ -25,10 +25,11 @@ def get_tables(platform):
         dfs[id] = pd.read_excel(f)
     return dfs
 
-# Dictionarys (to concatenate the tables for each platform later)
+# Dictionaries (to concatenate the tables for each platform later)
 dict_summary = {}
 dict_postinfo = {}
 dict_posts = {}
+dict_ranking = {}
 
 if __name__ == '__main__':
     file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
@@ -155,10 +156,29 @@ if __name__ == '__main__':
         df_sel_posts['Interaktionsrate'] = (df_sel_posts['Interaktionen'] /
                                             (df_sel_posts['Fans'] * df_sel_posts['Anzahl Posts']) * 1000)
 
+        # Ranking
+        df_ranking_s = df_profiles_summary[
+                            ['ID_new', 'Name in Studie', 'Fans', 'Anzahl Posts', 'Anzahl Interaktionen']].copy()
+        df_ranking_s.rename(columns={'Name in Studie': 'Anbieter', 'Anzahl Posts': 'Posts',
+                                     'Anzahl Interaktionen': 'Interaktionen'}, inplace=True)
+        df_ranking_s['Index_F'] = (df_ranking_s['Fans'] / df_ranking_s['Fans'].mean() * 100).round(2)
+        df_ranking_s['Index_P'] = (df_ranking_s['Posts'] / df_ranking_s['Posts'].mean() * 100).round(2)
+        df_ranking_s['Index_I'] = (df_ranking_s['Interaktionen'] / df_ranking_s['Interaktionen'].mean() * 100).round(2)
+        df_ranking_s['Rang_F'] = df_ranking_s['Fans'].rank(ascending=False, na_option='bottom', method='dense')
+        df_ranking_s['Rang_P'] = df_ranking_s['Posts'].rank(ascending=False, na_option='bottom', method='dense')
+        df_ranking_s['Rang_I'] = df_ranking_s['Interaktionen'].rank(ascending=False, na_option='bottom', method='dense')
+        df_ranking_s['Index'] = df_ranking_s[['Index_F', 'Index_P', 'Index_I']].sum(axis=1)
+        df_ranking_s['Rang'] = df_ranking_s['Index'].rank(ascending=False, na_option='bottom', method='dense')
+        col_order_ranking_s = ['Rang', 'ID_new', 'Anbieter', 'Fans', 'Index_F', 'Rang_F', 'Posts',
+                               'Index_P', 'Rang_P', 'Interaktionen', 'Index_I', 'Rang_I', 'Index']
+        df_ranking_s = df_ranking_s[col_order_ranking_s]
+        df_ranking_s = df_ranking_s.sort_values(by='Rang').reset_index(drop=True)
+
         # Store the tables in dictionaries with the platform name as the key
         dict_summary[platform] = df_profiles_summary
         dict_postinfo[platform] = df_posts_compact
         dict_posts[platform] = df_sel_posts
+        dict_ranking[platform] = df_ranking_s
 
 
 
