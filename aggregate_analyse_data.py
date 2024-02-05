@@ -25,6 +25,10 @@ def get_tables(platform):
         dfs[id] = pd.read_excel(f)
     return dfs
 
+# Dictionarys (to concatenate the tables for each platform later)
+dict_summary = {}
+dict_postinfo = {}
+dict_posts = {}
 
 if __name__ == '__main__':
     file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
@@ -33,8 +37,7 @@ if __name__ == '__main__':
 
     for platform in platforms:
         df_selection, df_profiles, df_posts = get_tables(platform)
-        df_profiles.rename(columns={'ID': 'ID_A', 'company': 'Name in Studie', 'profile_name': 'Profilname',
-                                    'url': 'Link'}, inplace=True)
+        df_profiles.rename(columns={'ID': 'ID_A', 'company': 'Name in Studie', 'profile_name': 'Profilname', }, inplace=True)
 
         # Create a DF with the selected Profiles
         df_sel_profiles = df_selection[['ID_new', 'ID_A', 'Firma/Marke']].merge(df_profiles, on='ID_A', how='left')
@@ -60,7 +63,8 @@ if __name__ == '__main__':
         df_sel_profiles.rename(columns={'fans':'Fans', 'description':'Beschreibung'},inplace=True)
 
         # Create a DF with selected Posts
-        df_sel_posts = df_sel_profiles[['ID_new', 'ID_A', 'Name in Studie', 'Fans', platform]].merge(df_posts, on='ID_A', how='inner') #remove platform
+        df_sel_posts = df_sel_profiles[['ID_new', 'ID_A', 'Name in Studie', 'Fans']].merge(
+            df_posts, on='ID_A', how='inner') #remove platform
         columns_to_remove = ['Unnamed', 'Number', 'Erhebung']
         for c in df_sel_posts.columns:
             for cn in columns_to_remove:
@@ -97,8 +101,8 @@ if __name__ == '__main__':
 
         interactions_above_zero = df_sel_posts[df_sel_posts['Interaktionen'] >= 1].groupby('ID_new').size()
         interactions_above_zero.name = 'Interaktionen>0'
-        df_agg = af_agg.merge(interactions_above_zero, on='ID_new', how='left')
-        df_agg['Anteil Post_Interakt.'] = (df_posts_calc['Interaktionen>0'] / df_agg['Anzahl Posts']) * 100
+        df_agg = df_agg.merge(interactions_above_zero, on='ID_new', how='left')
+        df_agg['Anteil Post_Interakt.'] = (df_agg['Interaktionen>0'] / df_agg['Anzahl Posts']) * 100
 
         if 'Aufrufe' in df_sel_posts.columns:
             view_col = df_sel_posts.groupby('ID_new')['Aufrufe'].sum()
@@ -109,7 +113,7 @@ if __name__ == '__main__':
         # Amounts per Post
         df_agg['Likes pro Post'] = df_agg['Anzahl Likes'] / df_agg['Anzahl Posts']
         df_agg['Kommentare pro Post'] = df_agg['Anzahl Kommentare'] / df_agg['Anzahl Posts']
-        df_agg['Interaktionen pro Post'] = df_agg['Interaktionen'] / df_agg['Anzahl Posts']
+        df_agg['Interaktionen pro Post'] = df_agg['Anzahl Interaktionen'] / df_agg['Anzahl Posts']
 
         # Count the amounts of post elements and calculate their rates
         if 'Bild' in df_sel_posts.columns:
@@ -120,17 +124,19 @@ if __name__ == '__main__':
             df_agg = df_agg.merge(image_perc, how='left', on='ID_new').merge(video_perc, how='left', on='ID_new')
             df_agg['Keine/andere Elemente'] = 100 - df_agg[['Anteil Bilder', 'Anteil Videos']].sum(axis=1)
         if platform == 'YouTube' or platform == 'TikTok':
-            df_posts_calc['Anteil Videos'] = 100
+            df_agg['Anteil Videos'] = 100
 
         # Merge the tables and create a DF that contains all the data of the profiles and their ativity
         df_profiles_summary = df_sel_profiles.merge(df_agg, on='ID_new', how='left')
+        df_profiles_summary['Network'] = platform
+        df_profiles_summary.rename(columns={'url': 'Link'}, inplace=True)
         df_profiles_summary['Interaktionsrate'] = np.where((df_profiles_summary['Anzahl Posts'] >= 10),
-                                                           (df_profiles_summary['Interaktionen'] /
+                                                           (df_profiles_summary['Anzahl Interaktionen'] /
                                     (df_profiles_summary['Fans'] * df_profiles_summary['Anzahl Posts']) * 1000), '-')
 
         col_order_overview = ['ID_new', 'ID_A', 'Firma/Marke', 'Name in Studie', 'Network', 'Profilname', 'Sprache',
                               'Fans', 'Anzahl Posts', 'Retweet Posts', 'Anzahl Likes', 'Anzahl Kommentare',
-                              'Anzahl Shares', 'Interaktionen', 'Anzahl Aufrufe', 'Interaktionsrate',
+                              'Anzahl Shares', 'Anzahl Interaktionen', 'Anzahl Aufrufe', 'Interaktionsrate',
                               'Interaktionen pro Post', 'Likes pro Post', 'Kommentare pro Post', 'Aufrufe pro Post',
                               'Anteil Post_Interakt.',
                               'Anteil Bilder', 'Anteil Videos', 'Keine/andere Elemente', 'Link', 'Beschreibung']
@@ -139,15 +145,21 @@ if __name__ == '__main__':
                 df_profiles_summary[e] = '-'
         df_profiles_summary = df_profiles_summary[col_order_overview]
 
-        # A short summary of the postings
-        df_posts_compact = pd.merge(df_sel_posts[['ID_new', 'ID_A', 'Name in Studie', 'Link']],
-                                    df_agg[['Anzahl Posts']], on='ID_new', how='left')
-        df_post_compact.rename(columns={'Name in Studie':'Anbieter', 'Anzahl Posts' : platform}, inplace=True)
+        # A short summary of the profiles and their posting activity
+        df_posts_compact = df_profiles_summary[['ID_new', 'ID_A', 'Name in Studie', 'Anzahl Posts', 'Link']].copy()
+        df_post_compact.rename(columns={'Name in Studie': 'Anbieter', 'Anzahl Posts': platform + '_posts',
+                                        'Link': platform}, inplace=True)
 
         # Calculate the Interaction rate for each post
         df_sel_posts = df_sel_posts.merge(df_agg[['Anzahl Posts']], on='ID_new', how='left')
         df_sel_posts['Interaktionsrate'] = (df_sel_posts['Interaktionen'] /
                                             (df_sel_posts['Fans'] * df_sel_posts['Anzahl Posts']) * 1000)
+
+        # Store the tables in dictionaries with the platform name as the key
+        dict_summary[platform] = df_profiles_summary
+        dict_postinfo[platform] = df_posts_compact
+        dict_posts[platform] = df_sel_posts
+
 
 
 
