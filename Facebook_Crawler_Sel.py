@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 import os
 # Settings
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
-path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Scraper\Social_Media_Crawler_2023"
+path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
 file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
 source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
 branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
@@ -230,33 +230,29 @@ def inspect_page(row, lower_dt):
     id = row['ID']
     url = str(row['url'])
     p_name = str(row['profile_name'])
-    if len(url) < 10 or len(str(row['last_post'])) <= 4 or 'Keine Beiträge' in str(row['last_post']):
-        print([id, p_name, '', dt_str, url])
-        return None, None, None
     driver.get(url)
     time.sleep(1)
     driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
     time.sleep(2)
-    current_dt, datelist = get_oldest_date()
+    current_dt, datelist = get_oldest_date(driver, p_name)
     if not current_dt:
         driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
         time.sleep(2)
-        current_dt, datelist = get_oldest_date()
+        current_dt, datelist = get_oldest_date(driver, p_name)
     if not current_dt:
-        print([id, p_name,'',dt_str, 'no posts'])
-        return None, None, None
+        print([id, p_name, url, 'no posts'])
+        return None, None, None, None
     if current_dt > lower_dt:
-        datelist = scroll_down(lower_dt)
+        datelist = scroll_down(lower_dt, driver, p_name)
     soup = BeautifulSoup(driver.page_source, 'html.parser')
-    # Find all posts with the driver
-    # posts = driver.find_elements(By.XPATH, '//div[@role="article" and not(contains(@aria-label, "Kommentar"))]')
-#    posts = soup.find_all('div', class_='x1n2onr6 x1ja2u2z')
     posts = soup.find_all('div', {'role': 'article', 'class': 'x1a2a7pz',
                                   'aria-label': lambda x: x is None or 'Kommentar' not in x})
+    if len(posts) == 0:
+        posts = soup.find_all('div', class_='x1n2onr6 x1ja2u2z')
     return id, p_name, posts, datelist
 
 
-def get_oldest_date():
+def get_oldest_date(driver, p_name):
     conditions = ['gestern', 'stund', 'minut', 'tage']
     soup = BeautifulSoup(driver.page_source, 'lxml')
     text_list = [str(t.text) for t in soup.find_all('text')]
@@ -278,13 +274,13 @@ def get_oldest_date():
     return current_dt, datelist
 
 
-def scroll_down(lower_dt):
+def scroll_down(lower_dt, driver, p_name):
     # Faster start:
     for i in range(10):
         driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
         time.sleep(1)
     time.sleep(3)
-    current_dt, datelist = get_oldest_date()
+    current_dt, datelist = get_oldest_date(driver, p_name)
     date_diff = current_dt - lower_dt
     rounds = date_diff.days // 2
     if rounds > 200:
@@ -299,8 +295,8 @@ def scroll_down(lower_dt):
         height3 = driver.execute_script("return document.documentElement.scrollHeight")
         if height1 == height3:
             break
-        current_dt, datelist = get_oldest_date()
-        if current_dt <= lower_dt:
+        current_dt, datelist = get_oldest_date(driver, p_name)
+        if current_dt < lower_dt:
             break
     return datelist
 
@@ -421,10 +417,10 @@ def post_scraper(p_name, posts, datelist, upper_dt, lower_dt):
     data_per_company = []
     count_p = 0
     reels = False
-    for p in posts[:5]:
+    for p in posts[:2]:
         if 'Reels' in str(get_visible_text(Comment, p)):
             reels = True
-    if len(posts) > len(datelist) and not reels:
+    if len(posts) > (len(datelist) + 1) and not reels:
         datelist = [datetime.now().strftime('%d.%m.%Y')] + datelist
     for id_p, p in enumerate(posts):
         post_date = ''
@@ -449,7 +445,7 @@ def post_scraper(p_name, posts, datelist, upper_dt, lower_dt):
             post_dt = datetime.strptime(post_date, "%d.%m.%Y")
             if post_dt >= upper_dt:
                 continue
-            if post_dt < lower_dt:
+            if post_dt < lower_dt and count_p > 1:
                 break
         except:
             pass
@@ -459,6 +455,23 @@ def post_scraper(p_name, posts, datelist, upper_dt, lower_dt):
         data_per_company.append(full_row)
     return data_per_company
 
+
+
+def check_conditions(id, row, start_at=0):
+    if id < start_at:      # If you want to skip some rows
+        return False
+    url = str(row['url'])
+    last_posts = str(row['last_post'])
+    if len(url) < 10 or len(last_posts) <= 4 or 'Keine Beiträge' in last_posts:
+        print([id, url, 'no posts'])
+        return False
+    try:
+        last_datestr = extract_text(last_post)
+        last_dt = datetime.strptime(last_datestr, "%d.%m.%Y")
+        if (lower_dt + timedelta(days=31)) < last_dt:
+            return False
+    finally:
+        return True
 
 def restart_browser(driver, webdriver, Service, chromedriver_path):
     driver.quit()
@@ -477,7 +490,7 @@ if __name__ == '__main__':
     import credentials_file as cred
     os.chdir(file_path)
     file ='Profile_Facebook_2024'
-    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, dt_str_now)
+    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
 
     # Driver and Browser setup
     all_data = []
@@ -485,15 +498,12 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
     login(cred.username_fb, cred.password_fb, driver, pyautogui)
 
-    skip = True
     # Iterate over the companies
     for count, row in df_source.iterrows():
-        if count >= 0:
-            skip = False
-        if skip:
+        crawl = check_conditions(count,row,start_at=0)
+        if not crawl:
             continue
-        if len(str(row['url'])) < 10:
-            continue
+
         # Restart the browser after 5 companies
         if count % 5 == 0:
             driver = restart_browser(driver, webdriver, Service, chromedriver_path)
@@ -503,7 +513,7 @@ if __name__ == '__main__':
         except:
             driver = restart_browser(driver, webdriver, Service, chromedriver_path)
             id, p_name, posts, datelist = inspect_page(row, lower_dt)
-        if not posts:
+        if not posts or len(posts):
             continue
 
         # Post_scraper scrapes the data of every post
@@ -526,7 +536,8 @@ if __name__ == '__main__':
 
     driver.quit()
 ########################################################################################################################
-########################################################################################################################
+# Find all posts with the driver
+#posts = driver.find_elements(By.XPATH, '//div[@role="article" and not(contains(@aria-label, "Kommentar"))]')
 # Pyautogui Investigation process
 '''
 time.sleep(4)
