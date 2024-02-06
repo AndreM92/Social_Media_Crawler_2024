@@ -191,18 +191,17 @@ if __name__ == '__main__':
 
 # post_crawler functions
 def clickOnFirst(startlink):
-    # Second post to avoid pinned comments
     posts = driver.find_elements(By.CLASS_NAME, '_aagw')
-    if len(posts) >= 2:
+    if len(posts) >= 1:
         try:
-            posts[1].click()
+            posts[0].click()
             time.sleep(2)
             post_url = driver.current_url
             if post_url != startlink and 'instagram.com' in str(post_url):
                 return post_url
         except:
             pass
-    pyautogui.moveTo(1122, 1000)
+    pyautogui.moveTo(690, 980)
     pyautogui.click()
     time.sleep(2)
     post_url = driver.current_url
@@ -342,6 +341,11 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
             # Two clicks to get on the next post
             likes_elem = driver.find_element(By.CLASS_NAME, '_aauu')
             likes = extract_number(extract_text(likes_elem))
+        elif 'weiteren Personen' in react_text:
+            likelink = ['https://www.instagram.com/' + l['href'] for l in soup.find_all('a', href=True) if
+                        'liked' in l['href']]
+            if len(likelink) >= 1:
+                likes = likelink[0]
         elif 'Gefällt' in react_text or 'likes' in react_text.lower():
             likes = extract_number(react_text)
         if likes == '' and 'weiteren Personen' in post_text:
@@ -363,19 +367,34 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
 
 
 def check_conditions(id, row,start_at=0):
-    if id < start_at:      # If you want to skip some rows
-        return True
-    posts = str(row['last_post'])
-    if len(url) < 10 or len(posts) <= 4 or 'Keine Beiträge' in posts:
-        print([id, p_name, '', dt_str] + [url])
-        return False,
-    try:
-        last_datestr = extract_text(row['last_post'])
-        last_dt = datetime.strptime(last_datestr, "%d.%m.%Y")
-        if (lower_dt - timedelta(days=31)) > last_dt:
-            return True
-    except:
+    if id < start_at:  # If you want to skip some rows
         return False
+    url = str(row['url'])
+    last_posts = str(row['last_post'])
+    if len(url) < 10 or len(last_posts) <= 4 or 'Keine Beiträge' in last_posts:
+        print([id, url, 'no posts'])
+        return False
+    try:
+        last_datestr = extract_text(last_post)
+        last_dt = datetime.strptime(last_datestr, "%d.%m.%Y")
+        if (lower_dt + timedelta(days=31)) < last_dt:
+            return False
+    finally:
+        return True
+
+
+def check_page(row):
+    id = str(row['ID'])
+    url = str(row['url'])
+    p_name = str(row['profile_name'])
+    try:
+        driver.get(url)
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, 'svg[aria-label="Instagram"]')))
+        post_url = clickOnFirst(driver.current_url)
+    except:
+        post_url = None
+    return id, post_url, p_name
 
 ########################################################################################################################
 
@@ -397,21 +416,11 @@ if __name__ == '__main__':
 
     # Loop
     for count, row in df_source.iterrows():
-        id = str(row['ID'])
-        url = str(row['url'])
-        p_name = str(row['profile_name'])
-        skip = check_conditions(count,row,start_at=0)
-        if skip:
+        crawl = check_conditions(count,row,start_at=23)
+        if not crawl:
             continue
-        # This way I can handle multiple errors
-        try:
-            driver.get(url)
-            # webdriverwait
-            time.sleep(4)
-            post_url = clickOnFirst(driver.current_url)
-        except:
-            post_url = None
-            pass
+        id, post_url, p_name = check_page(row)
+        break
         if not post_url:
             driver.quit()
             time.sleep(5)
@@ -419,18 +428,20 @@ if __name__ == '__main__':
             go_to_page(driver, startpage)
             login(cred.username_insta2, cred.password_insta2)
             time.sleep(3)
-            driver.get(url)
-            time.sleep(5)
-            post_url = clickOnFirst(driver.current_url)
+            id, post_url, p_name = check_page(row)
             if not post_url:
                 print(count, [id, p_name, '', dt_str, post_url])
                 continue
         data_per_company = []
+        oor_posts = 0
         p_num = 0
+        first_post = True
         while True:
             post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
             if not post_dt:
-                if p_num == 0:
+                # Pinned posts can be out of the date range
+                oor_posts += 1
+                if oor_posts <= 2:
                     post_url = nextPost(driver.current_url)
                     continue
                 break
@@ -470,7 +481,7 @@ if __name__ == '__main__':
     from crawler_functions import *
     import credentials_file as cred
     os.chdir(file_path)
-    source_file = 'Beiträge_Instagram_zu_korrigieren_1.xlsx'
+    source_file = 'Beiträge_Instagram_zu_korrigieren.xlsx'
     df_fillc = pd.read_excel(source_file)
 
     fill_data = []
@@ -481,7 +492,7 @@ if __name__ == '__main__':
     corr = 0
     for id, row in df_fillc.iterrows():
         # Restart the driver after 100 corrections
-        if corr > 0 and (corr % 150 == 0 or corr % 151 == 0):
+        if corr > 0 and (corr % 1500 == 0 or corr % 1510 == 0):
         #if id > 0 and id % 100 == 0:
             driver.quit()
             time.sleep(5)
@@ -496,6 +507,7 @@ if __name__ == '__main__':
                 driver.get(str(likes))
                 WebDriverWait(driver, 7).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, 'svg[aria-label="Instagram"]')))
+                time.sleep(1)
             except:
                 try:
                     pyautogui.moveTo(1277, 587)
@@ -503,14 +515,17 @@ if __name__ == '__main__':
                     driver.get(str(likes))
                     WebDriverWait(driver, 7).until(
                         EC.presence_of_element_located((By.CSS_SELECTOR, 'svg[aria-label="Instagram"]')))
+                    time.sleep(1)
                 except:
                     input('Press ENTER after solving website issues')
                     pass
             likes = len(driver.find_elements('xpath', "//*[text()='Folgen']"))
             if likes == 0:
-                time.sleep(1)
-                soup = BeautifulSoup(driver.page_source,'html.parser')
-                likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
+                time.sleep(2)
+                likes = len(driver.find_elements('xpath', "//*[text()='Folgen']"))
+                if likes == 0:
+                    soup = BeautifulSoup(driver.page_source,'html.parser')
+                    likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
             corr += 1
         if ((not comments and not '0' in str(comments)) or str(comments) == 'nan' or str(comments) == ''): #or 15 >= comments >= 10
             try:
@@ -532,6 +547,7 @@ if __name__ == '__main__':
             comments = comment_crawler(driver, post_text)
             corr += 1
         fill_data.append([id, row['ID_A'], likes, comments])
+
 
     df_filled = pd.DataFrame(fill_data, columns=['id','ID_A', 'Likes', 'Kommentare'])
     df_filled.to_excel('filled_Likes_comments.xlsx')
