@@ -7,6 +7,10 @@ from datetime import datetime
 
 from langdetect import detect
 
+import locale
+# I set my locale to German
+locale.setlocale(locale.LC_NUMERIC, 'de_DE.UTF-8')
+
 
 def get_tables(platform):
     file_keys = ['Auswahl_', 'Profile_', 'Beiträge_']
@@ -88,7 +92,7 @@ if __name__ == '__main__':
             df_posts_retweets = df_sel_posts[df_sel_posts['Beitragsart'] == 'retweet']
             count_retweets = df_posts_retweets.groupby('ID_new').size()
             count_retweets.name = 'Retweet Posts'
-            df_agg = df_agg.merge(count_retweets, on='ID_new', how='left')
+            df_sel_profiles = df_sel_profiles.merge(count_retweets, on='ID_new', how='left')
             df_sel_posts = df_sel_posts[df_sel_posts['Beitragsart'] != 'retweet']
             df_agg = df_sel_posts.groupby('ID_new').agg(
                 {'ID_A': 'size', 'Likes': 'sum', 'Kommentare': 'sum', 'Retweets': 'sum','Interaktionen': 'sum'}
@@ -102,27 +106,27 @@ if __name__ == '__main__':
         interactions_above_zero = df_sel_posts[df_sel_posts['Interaktionen'] >= 1].groupby('ID_new').size()
         interactions_above_zero.name = 'Interaktionen>0'
         df_agg = df_agg.merge(interactions_above_zero, on='ID_new', how='left')
-        df_agg['Anteil Post_Interakt.'] = (df_agg['Interaktionen>0'] / df_agg['Anzahl Posts']) * 100
+        df_agg['Anteil Post_Interakt.'] = ((df_agg['Interaktionen>0'] / df_agg['Anzahl Posts']) * 100).round(2)
 
         if 'Aufrufe' in df_sel_posts.columns:
             view_col = df_sel_posts.groupby('ID_new')['Aufrufe'].sum()
             view_col.name = 'Anzahl Aufrufe'
             df_agg = df_agg.merge(view_col, on='ID_new', how='left')
-            df_agg['Aufrufe pro Post'] = df_agg['Anzahl Aufrufe'] / df_agg['Anzahl Posts']
+            df_agg['Aufrufe pro Post'] = (df_agg['Anzahl Aufrufe'] / df_agg['Anzahl Posts']).round(2)
 
         # Amounts per Post
-        df_agg['Likes pro Post'] = df_agg['Anzahl Likes'] / df_agg['Anzahl Posts']
-        df_agg['Kommentare pro Post'] = df_agg['Anzahl Kommentare'] / df_agg['Anzahl Posts']
-        df_agg['Interaktionen pro Post'] = df_agg['Anzahl Interaktionen'] / df_agg['Anzahl Posts']
+        df_agg['Likes pro Post'] = (df_agg['Anzahl Likes'] / df_agg['Anzahl Posts']).round(2)
+        df_agg['Kommentare pro Post'] = (df_agg['Anzahl Kommentare'] / df_agg['Anzahl Posts']).round(2)
+        df_agg['Interaktionen pro Post'] = (df_agg['Anzahl Interaktionen'] / df_agg['Anzahl Posts']).round(2)
 
         # Count the amounts of post elements and calculate their rates
         if 'Bild' in df_sel_posts.columns:
-            image_perc = (df_sel_posts.groupby('ID_new')['Bild'].sum() / df_agg['Anzahl Posts']) * 100
+            image_perc = ((df_sel_posts.groupby('ID_new')['Bild'].sum() / df_agg['Anzahl Posts']) * 100).round(2)
             image_perc.name = 'Anteil Bilder'
-            video_perc = (df_sel_posts.groupby('ID_new')['Video'].sum() / df_agg['Anzahl Posts']) * 100
+            video_perc = ((df_sel_posts.groupby('ID_new')['Video'].sum() / df_agg['Anzahl Posts']) * 100).round(2)
             video_perc.name = 'Anteil Videos'
             df_agg = df_agg.merge(image_perc, how='left', on='ID_new').merge(video_perc, how='left', on='ID_new')
-            df_agg['Keine/andere Elemente'] = 100 - df_agg[['Anteil Bilder', 'Anteil Videos']].sum(axis=1)
+            df_agg['Keine/andere Elemente'] = 100 - (df_agg[['Anteil Bilder', 'Anteil Videos']].sum(axis=1)).round(2)
         if platform == 'YouTube' or platform == 'TikTok':
             df_agg['Anteil Videos'] = 100
 
@@ -130,10 +134,10 @@ if __name__ == '__main__':
         df_profiles_summary = df_sel_profiles.merge(df_agg, on='ID_new', how='left')
         df_profiles_summary['Network'] = platform
         df_profiles_summary.rename(columns={'url': 'Link'}, inplace=True)
-        df_profiles_summary['Interaktionsrate'] = np.where((df_profiles_summary['Anzahl Posts'] >= 10),
+        df_profiles_summary['Interaktionsrate'] = np.where((df_profiles_summary['Anzahl Posts'] >= 1),
                                                            (df_profiles_summary['Anzahl Interaktionen'] /
-                                    (df_profiles_summary['Fans'] * df_profiles_summary['Anzahl Posts']) * 1000), '-')
-
+                        (df_profiles_summary['Fans'] * df_profiles_summary['Anzahl Posts']) * 1000).round(5), np.nan)
+        df_profiles_summary['Interaktionsrate'].fillna('-', inplace=True)
         col_order_overview = ['ID_new', 'ID_A', 'Firma/Marke', 'Name in Studie', 'Network', 'Profilname', 'Sprache',
                               'Fans', 'Anzahl Posts', 'Retweet Posts', 'Anzahl Likes', 'Anzahl Kommentare',
                               'Anzahl Shares', 'Anzahl Interaktionen', 'Anzahl Aufrufe', 'Interaktionsrate',
@@ -147,13 +151,33 @@ if __name__ == '__main__':
 
         # A short summary of the profiles and their posting activity
         df_posts_compact = df_profiles_summary[['ID_new', 'ID_A', 'Name in Studie', 'Anzahl Posts', 'Link']].copy()
+        linklist = list(df_posts_compact['Link'])
+        post_numbers = list(df_posts_compact['Anzahl Posts'])
+        for id, l in enumerate(linklist):
+            if 'http' in str(l) and not(str(post_numbers[id])[0].isdigit()):
+                post_numbers[id] = 0
+        df_posts_compact['Anzahl Posts'] = post_numbers
         df_posts_compact.rename(columns={'Name in Studie': 'Anbieter', 'Anzahl Posts': platform + '_posts',
                                         'Link': platform}, inplace=True)
 
         # Calculate the Interaction rate for each post
         df_sel_posts = df_sel_posts.merge(df_agg[['Anzahl Posts']], on='ID_new', how='left')
         df_sel_posts['Interaktionsrate'] = (df_sel_posts['Interaktionen'] /
-                                            (df_sel_posts['Fans'] * df_sel_posts['Anzahl Posts']) * 1000)
+                                            (df_sel_posts['Fans'] * df_sel_posts['Anzahl Posts']) * 1000).round(5)
+        # Customized deletion and ordering of the columns
+        if any(c == 'ID' for c in df_sel_posts.columns):
+            df_sel_posts.drop(columns={'ID', 'Fans', 'Anzahl Posts'}, inplace=True)
+        else:
+            df_sel_posts.drop(columns={'Anzahl Posts','Fans'},inplace=True)
+        col_unorder_p = list(df_sel_posts.columns)
+        if 'Retweets' in col_unorder_p:
+            pos = col_unorder_p.index('Retweets') + 1
+        elif 'Shares' in col_unorder_p:
+            pos = col_unorder_p.index('Shares') + 1
+        else:
+            pos = col_unorder_p.index('Kommentare') + 1
+        col_order_p = col_unorder_p[:pos] + ['Interaktionen', 'Interaktionsrate'] + col_unorder_p[pos:-2]
+        df_sel_posts = df_sel_posts[col_order_p]
 
         # Ranking
         df_ranking_s = df_profiles_summary[
@@ -188,7 +212,7 @@ if __name__ == '__main__':
     for p, df in dict_summary.items():
         if p == platforms[0]:
             continue
-        table_profiles = pd.concat([df_all_profiles_sum, df], axis=0)
+        table_profiles = pd.concat([table_profiles, df], axis=0)
 
     # Custom function for na-filling
     table_profiles['Link'].fillna('-', inplace=True)
@@ -216,7 +240,6 @@ if __name__ == '__main__':
     table_postinfo['Beiträge gesamt'] = table_postinfo[n_posts].sum(axis=1)
     col_order = ['ID_new', 'Anbieter', 'Anzahl Kanäle', 'Aktiv genutzte Kanäle', 'Beiträge gesamt'] + n_posts + platforms
     table_postinfo = table_postinfo[col_order]
-
     dict_posts['Übersicht'] = table_postinfo
 
 
@@ -249,7 +272,6 @@ if __name__ == '__main__':
     name_ranks = 'Ranking_Supplements ' + date_str + '.xlsx'
 
     table_profiles.to_excel(name_profiles)
-
     with pd.ExcelWriter(name_ranks, engine='xlsxwriter') as writer:
         for platform, df in dict_ranking.items():
             df.to_excel(writer, sheet_name=platform)
