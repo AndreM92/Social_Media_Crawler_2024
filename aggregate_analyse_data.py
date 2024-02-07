@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import re
 import os
-
+from collections import OrderedDict
 from datetime import datetime
 
 from langdetect import detect
@@ -240,7 +240,8 @@ if __name__ == '__main__':
     table_postinfo['Beiträge gesamt'] = table_postinfo[n_posts].sum(axis=1)
     col_order = ['ID_new', 'Anbieter', 'Anzahl Kanäle', 'Aktiv genutzte Kanäle', 'Beiträge gesamt'] + n_posts + platforms
     table_postinfo = table_postinfo[col_order]
-    dict_posts['Übersicht'] = table_postinfo
+    dict_postinfo = OrderedDict(
+        [('Übersicht', table_postinfo)] + [(platform, df) for platform, df in dict_postinfo.items()])
 
 
     # Final Ranking table
@@ -262,7 +263,8 @@ if __name__ == '__main__':
     col_order_rf = ['Rang'] + list(table_ranking.columns)[:-1]
     table_ranking = table_ranking[col_order_rf]
     table_ranking = table_ranking.sort_values(by='Rang').reset_index(drop=True)
-    dict_ranking['Gesamtranking'] = table_ranking
+    dict_ranking = OrderedDict(
+        [('Gesamtranking', table_ranking)] + [(platform, df) for platform, df in dict_ranking.items()])
 
 
     # Export to excel
