@@ -20,7 +20,7 @@ import re
 
 
 # Say Hello
-def printhello(name):
+def print_hello(name):
     print(f'Hello {name}')
 
 # General Settings
@@ -436,6 +436,37 @@ def get_text_from_screenshot(driver, p_name):
     raw_text = pytesseract.image_to_string(img)
     scr_text = extract_text(raw_text)
     return scr_text
+
+
+# Interpretation of the language
+def lang_interpreter(detect, branch_eng, branch_ger, content):
+    excludelist = ['http', 'web', 'follower', 'like', 'community', 'rating', 'joined', 'cookie', 'access', 'online', 'shop']
+    eng_words = ['welcome', 'corporate', 'provider', 'products', 'individuals', 'disease', 'the ' 'one ', 'brand ']
+    ger_words = ['herzlich', 'offiziell', 'erfahrung', 'stadt', 'fragen', 'familie', 'unternehmen', 'verbindung',
+                 'produktion', 'vertrieb', 'tochter', 'aktuelle', 'der ', 'die ', 'das ', 'ein ', 'einer ', 'unser', 'eure']
+    content_list = content.split()
+    for e in content_list:
+        desc = ' '.join([str(c) for c in content_list if str(c).isalpha()
+                         and not any(e in str(c).lower() for e in excludelist)])
+    if len(desc) < 5:
+        lang = '-'
+    else:
+        try:
+            lang_det = detect(desc)
+            if lang_det == 'en':
+                lang = 'Englisch/ Internat.'
+            elif lang_det == 'de':
+                lang = 'Deutsch'
+            else:
+                lang = lang_det
+                #lang = 'Andere'
+        except:
+            lang = '-'
+    if any(w in desc.lower() for w in eng_words) or any(w in desc for w in branch_ger):
+        lang = 'Deutsch'
+    if any(w in desc.lower() for w in ger_words) or any(w in desc for w in branch_eng):
+        lang = 'Englisch/ Internat.'
+    return lang
 
 
 if __name__ == "__main__":
