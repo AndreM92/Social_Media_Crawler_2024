@@ -6,11 +6,10 @@ from collections import OrderedDict
 from datetime import datetime
 
 from langdetect import detect
+from crawler_functions import lang_interpreter
 
 import locale
-# I set my locale to German
-locale.setlocale(locale.LC_NUMERIC, 'de_DE.UTF-8')
-
+########################################################################################################################
 
 def get_tables(platform):
     file_keys = ['Auswahl_', 'Profile_', 'Beiträge_']
@@ -29,16 +28,54 @@ def get_tables(platform):
         dfs[id] = pd.read_excel(f)
     return dfs
 
-# Dictionaries (to concatenate the tables for each platform later)
-dict_summary = {}
-dict_postinfo = {}
-dict_posts = {}
-dict_ranking = {}
+
+def format_language(profile_desc, post_content):
+    # Specific keywords
+    branch_eng = ['vitamins', 'nutrients', 'nutritional', 'mineralization', 'products', 'Athletes', 'Healthy']
+    branch_ger = [' Vitamine ', 'Ernährung ', 'Nährstoff', 'Sport', 'Leistung', 'Gesundheit', 'Bestform', 'Motivation']
+    profile_desc = profile_desc.split('Link')[0]
+    sc = profile_desc.split('·')[0]
+    if len(sc) >= 50:
+        profile_desc = sc
+    post_content = post_content.split('Mehr anzeigen')[0]
+    pc = post_content.split('·')[0]
+    if len(pc) >= 30:
+        post_content = pc
+    lang_profile = lang_interpreter(detect, branch_eng, branch_ger, profile_desc)
+    lang_posts = lang_interpreter(detect, branch_eng, branch_ger, post_content)
+    languages = [lang_profile, lang_posts]
+    if '-' in languages:
+        languages.remove('-')
+    if len(languages) == 0:
+        lang = '-'
+    elif 'de' in languages and not 'en' in languages:
+        lang = 'Deutsch'
+    elif 'de' in languages and 'en' in languages:
+        lang = 'Deutsch/ Internat.'
+    elif 'en' in languages:
+        lang = 'Englisch/ Internat.'
+    elif 'fr' in languages:
+        lang = 'Französisch'
+    elif 'es' in languages:
+        lang = 'Spanisch'
+    elif 'pl' in languages:
+        lang = 'Polnisch'
+    else:
+        lang = ', '.join(languages)
+    return lang
+
 
 if __name__ == '__main__':
     file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
     os.chdir(file_path)
     platforms = ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'Twitter', 'YouTube']
+    # I set my locale to German
+    locale.setlocale(locale.LC_NUMERIC, 'de_DE.UTF-8')
+    # Dictionaries (to concatenate the tables for each platform later)
+    dict_summary = {}
+    dict_postinfo = {}
+    dict_posts = {}
+    dict_ranking = {}
 
     for platform in platforms:
         df_selection, df_profiles, df_posts = get_tables(platform)
@@ -81,6 +118,18 @@ if __name__ == '__main__':
             df_sel_posts['Interaktionen'] = df_sel_posts[['Likes', 'Kommentare', 'Retweets']].sum(axis=1)
         else:
             df_sel_posts['Interaktionen'] = df_sel_posts[['Likes', 'Kommentare']].sum(axis=1)
+
+        # Interpret the language of the profile based on the profile description
+        # To interpret the language of the posts also, I first need to add the content of the last post
+        # of every company to the profile df
+        first_post_content = df_sel_posts.groupby('ID_new').first()['Content']
+        df_sel_profiles = df_sel_profiles.merge(first_post_content, on='ID_new', how='left')
+        df_sel_profiles.rename(columns={'Content': 'first_post_content'}, inplace=True)
+        lang_list = []
+        for id, row in df_sel_profiles.iterrows():
+            lang = format_language(str(row['Beschreibung']), str(row['first_post_content']))
+            lang_list.append(lang)
+        df_sel_profiles['Sprache'] = lang_list
 
         # Sum up the posts/tweets, likes, comments, shares and calculate and the interaction number as a summary
         if 'Shares' in df_sel_posts.columns:
@@ -240,8 +289,9 @@ if __name__ == '__main__':
     table_postinfo['Beiträge gesamt'] = table_postinfo[n_posts].sum(axis=1)
     col_order = ['ID_new', 'Anbieter', 'Anzahl Kanäle', 'Aktiv genutzte Kanäle', 'Beiträge gesamt'] + n_posts + platforms
     table_postinfo = table_postinfo[col_order]
-    dict_postinfo = OrderedDict(
-        [('Übersicht', table_postinfo)] + [(platform, df) for platform, df in dict_postinfo.items()])
+    ordered_dict_posts = OrderedDict([('Übersicht', table_postinfo)])
+    # Update the OrderedDict with the rest of the data
+    ordered_dict_posts.update((k, v) for k, v in dict_posts.items())
 
 
     # Final Ranking table
@@ -278,5 +328,5 @@ if __name__ == '__main__':
         for platform, df in dict_ranking.items():
             df.to_excel(writer, sheet_name=platform)
     with pd.ExcelWriter(name_posts, engine='xlsxwriter') as writer:
-        for platform, df in dict_posts.items():
+        for platform, df in ordered_dict_posts.items():
             df.to_excel(writer, sheet_name=platform)
