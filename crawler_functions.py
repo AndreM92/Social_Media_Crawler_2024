@@ -440,32 +440,25 @@ def get_text_from_screenshot(driver, p_name):
 
 # Interpretation of the language
 def lang_interpreter(detect, branch_eng, branch_ger, content):
-    excludelist = ['http', 'web', 'follower', 'like', 'community', 'rating', 'joined', 'cookie', 'access', 'online', 'shop']
-    eng_words = ['welcome', 'corporate', 'provider', 'products', 'individuals', 'disease', 'the ' 'one ', 'brand ']
-    ger_words = ['herzlich', 'offiziell', 'erfahrung', 'stadt', 'fragen', 'familie', 'unternehmen', 'verbindung',
-                 'produktion', 'vertrieb', 'tochter', 'aktuelle', 'der ', 'die ', 'das ', 'ein ', 'einer ', 'unser', 'eure']
+    excludelist = ['http', 'web', 'follower', 'like', 'community', 'rating', 'joined', 'cookie', 'access', 'online', 'shop', 'seite']
+    eng_words = ['welcome', 'corporate', 'provider', 'products', 'individuals', 'disease', ' the ', 'brand ', 'market', 'major', 'today', 'quality']
+    ger_words = ['herzlich', 'offiziell', 'erfahrung', 'stadt ', 'fragen', 'familie', 'verbindung', 'produktion',
+                 'vertrieb', 'tochter', 'aktuelle', ' der ', ' die ', ' das ', ' ein ', ' einer ', 'unser ', 'eure ']
     content_list = content.split()
-    for e in content_list:
-        desc = ' '.join([str(c) for c in content_list if str(c).isalpha()
-                         and not any(e in str(c).lower() for e in excludelist)])
+    desc = ' '.join([str(c) for c in content_list if str(c).isalpha()
+                     and not any(e in str(c).lower() for e in excludelist) and len(str(c)) >= 3])
     if len(desc) < 5:
         lang = '-'
     else:
         try:
-            lang_det = detect(desc)
-            if lang_det == 'en':
-                lang = 'Englisch/ Internat.'
-            elif lang_det == 'de':
-                lang = 'Deutsch'
-            else:
-                lang = lang_det
-                #lang = 'Andere'
+            lang = detect(desc)
         except:
             lang = '-'
-    if any(w in desc.lower() for w in eng_words) or any(w in desc for w in branch_ger):
-        lang = 'Deutsch'
-    if any(w in desc.lower() for w in ger_words) or any(w in desc for w in branch_eng):
-        lang = 'Englisch/ Internat.'
+    # Additional conditions because of anglicized words and the other way around
+    if any(w in desc.lower() for w in eng_words) or any(w in desc for w in branch_eng):
+        lang = 'en'
+    if any(w in desc.lower() for w in ger_words) or any(w in desc for w in branch_ger):
+        lang = 'de'
     return lang
 
 
