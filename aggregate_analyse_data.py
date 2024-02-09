@@ -65,7 +65,51 @@ def format_language(profile_desc, post_content):
     return lang
 
 
+def freq_in_posts(_by, platform, df):
+    title = 'Häufigkeiten Top-100 Posts nach ' + _by
+    df_sorted = df.sort_values(_by, ascending=False).copy()
+    if platform == 'X':
+        df_sorted = df_sorted[df_sorted['Beitragsart'] != 'retweet']
+    df_top100 = df_sorted[:100]
+    df_frequencies = df_top100.groupby(['ID_new', 'Name in Studie']).size().reset_index(name=title)
+    df_frequencies = df_frequencies.sort_values(by=title, ascending=False).reset_index(drop=True)
+    df_frequencies['Rang'] = df_frequencies[title].rank(ascending=False, method='min').astype(int)
+    df_frequencies = df_frequencies[['ID_new', 'Rang'] + list(df_frequencies.columns)[1:-1]]
+    return df_frequencies
+
+def get_words_and_hashtags(content_list):
+    word_dict = {}
+    hash_dict = {}
+    content_list = [c for c in content_list if isinstance(c, str)]
+    full_content = ' '.join(content_list).replace('#', ' #')
+    cleaned_content = re.sub(r'(?<!#)\b(?<!\w)(\w+)\b(?!\w)', r' \1 ', full_content)
+    cleaned_content2 = re.sub('\s+', ' ', cleaned_content).strip()
+    word_list = [str(w).strip() for w in cleaned_content2.split(' ') if
+                 (len(str(w).strip()) >= 3 and not str(w).isdigit())]
+    word_list = [w for w in word_list if str(w)[0] == '#' or not any(w.lower() == e.lower() for e in excludelist)]
+    for w in word_list:
+        if w[0] == '#':
+            if w in hash_dict:
+                hash_dict[w] += 1
+            else:
+                hash_dict[w] = 1
+        else:
+            if w in word_dict:
+                word_dict[w] += 1
+            else:
+                word_dict[w] = 1
+    word_dict = sorted(word_dict.items(), key=lambda item: item[1], reverse=True)
+    hash_dict = sorted(hash_dict.items(), key=lambda item: item[1], reverse=True)
+    word_dict = word_dict[:150]
+    hash_dict = hash_dict[:150]
+    df_topwords = pd.DataFrame(word_dict, columns=['words', 'count'])
+    df_tophashtags = pd.DataFrame(hash_dict, columns=['hashtags', 'count2'])
+    df_w_h = pd.concat([df_topwords, df_tophashtags], axis=1)
+    return df_w_h
+
+
 if __name__ == '__main__':
+    working_path = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
     file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
     os.chdir(file_path)
     platforms = ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'Twitter', 'YouTube']
@@ -131,7 +175,7 @@ if __name__ == '__main__':
             lang_list.append(lang)
         df_sel_profiles['Sprache'] = lang_list
 
-        # Sum up the posts/tweets, likes, comments, shares and calculate and the interaction number as a summary
+        # Sum up the posts/tweets, likes, comments, shares and the interaction number as a summary
         if 'Shares' in df_sel_posts.columns:
             df_agg = df_sel_posts.groupby('ID_new').agg(
                 {'ID_A': 'size', 'Likes': 'sum', 'Kommentare': 'sum', 'Shares': 'sum', 'Interaktionen': 'sum'}
@@ -316,6 +360,29 @@ if __name__ == '__main__':
     dict_ranking = OrderedDict(
         [('Gesamtranking', table_ranking)] + [(platform, df) for platform, df in dict_ranking.items()])
 
+    ########################################################################################################################
+    # Top 100-Posts Frequencies, Words and Hashtags
+    os.chdir(working_path)
+    with open('exclude_words.txt', 'r', encoding='utf-8') as file:
+        excludelist = [line.strip() for line in file]
+
+    dict_frequencies = {}
+    dict_w_h = {}
+    for platform, df in dict_posts.items():
+        rank_by = ['Likes', 'Kommentare', 'Interaktionsrate']
+        for _by in rank_by:
+            df_frequencies = freq_in_posts(_by, platform, df)
+            if platform == 'Twitter':
+                platform = 'X'
+            tab_name = platform[:1] + '_Top100_' + _by
+            if len(tab_name) >= 31:
+                tab_name = tab_name[:31]
+            dict_frequencies[tab_name] = df_frequencies
+
+        content_list = list(df['Content'])
+        df_w_h = get_words_and_hashtags(content_list)
+        dict_w_h[platform] = df_w_h
+
 
     # Export to excel
     date_str = datetime.now().strftime("%Y%m%d")
@@ -323,6 +390,7 @@ if __name__ == '__main__':
     name_posts = 'Beiträge_Supplements ' + date_str + '.xlsx'
     name_ranks = 'Ranking_Supplements ' + date_str + '.xlsx'
 
+    os.chdir(file_path)
     table_profiles.to_excel(name_profiles)
     with pd.ExcelWriter(name_ranks, engine='xlsxwriter') as writer:
         for platform, df in dict_ranking.items():
