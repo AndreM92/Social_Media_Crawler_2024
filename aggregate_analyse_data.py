@@ -112,7 +112,7 @@ if __name__ == '__main__':
     working_path = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
     file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
     os.chdir(file_path)
-    platforms = ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'Twitter', 'YouTube']
+    platforms = ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'X', 'YouTube']
     # I set my locale to German
     locale.setlocale(locale.LC_NUMERIC, 'de_DE.UTF-8')
     # Dictionaries (to concatenate the tables for each platform later)
@@ -306,7 +306,6 @@ if __name__ == '__main__':
         if p == platforms[0]:
             continue
         table_profiles = pd.concat([table_profiles, df], axis=0)
-
     # Custom function for na-filling
     table_profiles['Link'].fillna('-', inplace=True)
 
@@ -321,6 +320,9 @@ if __name__ == '__main__':
     table_profiles = table_profiles.apply(custom_fill, axis=1)
     table_profiles.columns.values[0]
 
+    # Create an Ordered Dict and start with the profile table
+    ordered_dict_profiles = OrderedDict([('Kanäle Übersicht',table_profiles)])
+
 
     # Summarize the posting activity
     table_postinfo = dict_postinfo[platforms[0]][['ID_new', 'Anbieter']]
@@ -333,16 +335,26 @@ if __name__ == '__main__':
     table_postinfo['Beiträge gesamt'] = table_postinfo[n_posts].sum(axis=1)
     col_order = ['ID_new', 'Anbieter', 'Anzahl Kanäle', 'Aktiv genutzte Kanäle', 'Beiträge gesamt'] + n_posts + platforms
     table_postinfo = table_postinfo[col_order]
+
+    # Create a df about the usage rate of each platform
+    existing_accounts = {}
+    active_accounts = {}
+    for id, platform in enumerate(platforms):
+        existing_accounts[platform] = table_postinfo[platform].count()
+        active_accounts[platform] = table_postinfo[table_postinfo[n_posts[id]] > 0][n_posts[id]].count()
+    df_usage_rate = pd.DataFrame({'Account vorhanden': existing_accounts, 'Account aktiv genutzt': active_accounts})
+    ordered_dict_profiles.update({'Nutzungsgrad':df_usage_rate})
+
+    # Create an Ordered dict for the posts
+    table_postinfo.fillna('-', inplace=True)
     ordered_dict_posts = OrderedDict([('Übersicht', table_postinfo)])
-    # Update the OrderedDict with the rest of the data
-    ordered_dict_posts.update((k, v) for k, v in dict_posts.items())
+    # Update the OrderedDict with the posts on every platform
+    ordered_dict_posts.update((p, df) for p, df in dict_posts.items())
 
 
     # Final Ranking table
     table_ranking = table_postinfo[['ID_new', 'Anbieter', 'Anzahl Kanäle', 'Aktiv genutzte Kanäle']].copy()
     for platform, df in dict_ranking.items():
-        if platform == 'Twitter':
-            platform = 'X'
         df_ranking_i = df[['ID_new', 'Rang', 'Index']].copy()
         df_ranking_i.rename(columns={'Rang': 'Rang_' + platform[:1], 'Index': 'Index_' + platform[:1]}, inplace=True)
         table_ranking = table_ranking.merge(df_ranking_i, on='ID_new', how='left')
@@ -357,8 +369,10 @@ if __name__ == '__main__':
     col_order_rf = ['Rang'] + list(table_ranking.columns)[:-1]
     table_ranking = table_ranking[col_order_rf]
     table_ranking = table_ranking.sort_values(by='Rang').reset_index(drop=True)
-    dict_ranking = OrderedDict(
-        [('Gesamtranking', table_ranking)] + [(platform, df) for platform, df in dict_ranking.items()])
+
+    # Append the ranking tables to ordered_dict_profiles
+    ordered_dict_profiles.update({'Gesamtranking': table_ranking})
+    ordered_dict_profiles.update((p, df) for p, df in dict_ranking.items())
 
     ########################################################################################################################
     # Top 100-Posts Frequencies, Words and Hashtags
@@ -372,8 +386,6 @@ if __name__ == '__main__':
         rank_by = ['Likes', 'Kommentare', 'Interaktionsrate']
         for _by in rank_by:
             df_frequencies = freq_in_posts(_by, platform, df)
-            if platform == 'Twitter':
-                platform = 'X'
             tab_name = platform[:1] + '_Top100_' + _by
             if len(tab_name) >= 31:
                 tab_name = tab_name[:31]
