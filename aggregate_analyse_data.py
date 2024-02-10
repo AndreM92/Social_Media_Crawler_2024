@@ -242,14 +242,16 @@ if __name__ == '__main__':
                 df_profiles_summary[e] = '-'
         df_profiles_summary = df_profiles_summary[col_order_overview]
 
-        # A short summary of the profiles and their posting activity
-        df_posts_compact = df_profiles_summary[['ID_new', 'ID_A', 'Name in Studie', 'Anzahl Posts', 'Link']].copy()
-        linklist = list(df_posts_compact['Link'])
-        post_numbers = list(df_posts_compact['Anzahl Posts'])
+        # Add zeros to the profile count if they havent posted anything
+        linklist = list(df_profiles_summary['Link'])
+        post_numbers = list(df_profiles_summary['Anzahl Posts'])
         for id, l in enumerate(linklist):
             if 'http' in str(l) and not(str(post_numbers[id])[0].isdigit()):
                 post_numbers[id] = 0
-        df_posts_compact['Anzahl Posts'] = post_numbers
+        df_profiles_summary['Anzahl Posts'] = post_numbers
+
+        # A short summary of the profiles and their posting activity
+        df_posts_compact = df_profiles_summary[['ID_new', 'ID_A', 'Name in Studie', 'Anzahl Posts', 'Link']].copy()
         df_posts_compact.rename(columns={'Name in Studie': 'Anbieter', 'Anzahl Posts': platform + '_posts',
                                         'Link': platform}, inplace=True)
 
@@ -306,6 +308,7 @@ if __name__ == '__main__':
         if p == platforms[0]:
             continue
         table_profiles = pd.concat([table_profiles, df], axis=0)
+
     # Custom function for na-filling
     table_profiles['Link'].fillna('-', inplace=True)
 
@@ -325,11 +328,11 @@ if __name__ == '__main__':
 
 
     # Summarize the posting activity
+    n_posts = [p + '_posts' for p in platforms]
     table_postinfo = dict_postinfo[platforms[0]][['ID_new', 'Anbieter']]
     for p, df in dict_postinfo.items():
         table_postinfo = table_postinfo.merge(df[['ID_new', p + '_posts', p]], on='ID_new', how='left')
     table_postinfo['Anzahl Kanäle'] = table_postinfo[platforms].apply(lambda row: sum('http' in str(val) for val in row), axis=1)
-    n_posts = [p + '_posts' for p in platforms]
     table_postinfo['Aktiv genutzte Kanäle'] = table_postinfo[n_posts].apply(
         lambda row: sum(~row.astype(str).isna() & (pd.to_numeric(row, errors='coerce') > 0)), axis=1)
     table_postinfo['Beiträge gesamt'] = table_postinfo[n_posts].sum(axis=1)
@@ -344,6 +347,26 @@ if __name__ == '__main__':
         active_accounts[platform] = table_postinfo[table_postinfo[n_posts[id]] > 0][n_posts[id]].count()
     df_usage_rate = pd.DataFrame({'Account vorhanden': existing_accounts, 'Account aktiv genutzt': active_accounts})
     ordered_dict_profiles.update({'Nutzungsgrad':df_usage_rate})
+
+    # Create a dict with dfs about the statistics for each platform
+    dict_statistics = {}
+    table_names = ['Fans', 'Anzahl Posts', 'Anzahl Interaktionen']
+    col_names = ['Min', 'Max', 'Mittelwert', 'Median']
+    for t in table_names:
+        statistics_data = []
+        for p, df in dict_summary.items():
+            st = t.replace('Anzahl ', '')
+            min = df[t].min().round(2)
+            max = df[t].max().round(2)
+            mean = df[t].mean().round(2)
+            median = df[t].median().round(2)
+            row = [p,min,max,mean,median]
+            statistics_data.append(row)
+        df_statistics_s = pd.DataFrame(statistics_data, columns=[st] + col_names)
+        dict_statistics[t] = df_statistics_s
+
+#        table_statistics = pd.concat([table_statistics, df_statistics_s], axis=0)
+
 
     # Create an Ordered dict for the posts
     table_postinfo.fillna('-', inplace=True)
@@ -400,12 +423,10 @@ if __name__ == '__main__':
     date_str = datetime.now().strftime("%Y%m%d")
     name_profiles = 'Kanäle_Supplements ' + date_str + '.xlsx'
     name_posts = 'Beiträge_Supplements ' + date_str + '.xlsx'
-    name_ranks = 'Ranking_Supplements ' + date_str + '.xlsx'
 
     os.chdir(file_path)
-    table_profiles.to_excel(name_profiles)
-    with pd.ExcelWriter(name_ranks, engine='xlsxwriter') as writer:
-        for platform, df in dict_ranking.items():
+    with pd.ExcelWriter(name_profiles, engine='xlsxwriter') as writer:
+        for platform, df in ordered_dict_profiles.items():
             df.to_excel(writer, sheet_name=platform)
     with pd.ExcelWriter(name_posts, engine='xlsxwriter') as writer:
         for platform, df in ordered_dict_posts.items():
