@@ -348,25 +348,25 @@ if __name__ == '__main__':
     df_usage_rate = pd.DataFrame({'Account vorhanden': existing_accounts, 'Account aktiv genutzt': active_accounts})
     ordered_dict_profiles.update({'Nutzungsgrad':df_usage_rate})
 
-    # Create a dict with dfs about the statistics for each platform
-    dict_statistics = {}
+    # Create a table with statistics about each platform
     table_names = ['Fans', 'Anzahl Posts', 'Anzahl Interaktionen']
-    col_names = ['Min', 'Max', 'Mittelwert', 'Median']
     for t in table_names:
+        st = t.replace('Anzahl ', '')
+        col_names = ['Min_' + st[0], 'Max_' + st[0], 'Mittelwert_' + st[0], 'Median_' + st[0]]
         statistics_data = []
         for p, df in dict_summary.items():
-            st = t.replace('Anzahl ', '')
-            min = df[t].min().round(2)
-            max = df[t].max().round(2)
+            min = df[t].min()
+            max = df[t].max()
             mean = df[t].mean().round(2)
             median = df[t].median().round(2)
             row = [p,min,max,mean,median]
             statistics_data.append(row)
-        df_statistics_s = pd.DataFrame(statistics_data, columns=[st] + col_names)
-        dict_statistics[t] = df_statistics_s
-
-#        table_statistics = pd.concat([table_statistics, df_statistics_s], axis=0)
-
+        if t == table_names[0]:
+            table_statistics = pd.DataFrame(statistics_data, columns=[st] + col_names)
+            continue
+        df_stat = pd.DataFrame(statistics_data, columns=[st] + col_names)
+        table_statistics = pd.concat([table_statistics, df_stat], axis=1)
+    ordered_dict_profiles.update({'Statistiken': table_statistics})
 
     # Create an Ordered dict for the posts
     table_postinfo.fillna('-', inplace=True)
