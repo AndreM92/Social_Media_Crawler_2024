@@ -74,14 +74,16 @@ def freq_in_posts(_by, platform, df):
     df_frequencies = df_top100.groupby(['ID_new', 'Name in Studie']).size().reset_index(name=title)
     df_frequencies = df_frequencies.sort_values(by=title, ascending=False).reset_index(drop=True)
     df_frequencies['Rang'] = df_frequencies[title].rank(ascending=False, method='min').astype(int)
-    df_frequencies = df_frequencies[['ID_new', 'Rang'] + list(df_frequencies.columns)[1:-1]]
+    df_frequencies = df_frequencies[['Rang', 'ID_new'] + list(df_frequencies.columns)[1:-1]]
     return df_frequencies
 
-def get_words_and_hashtags(content_list):
+def get_words_and_hashtags(content_list, platform = None):
     word_dict = {}
     hash_dict = {}
     content_list = [c for c in content_list if isinstance(c, str)]
     full_content = ' '.join(content_list).replace('#', ' #')
+    if platform == 'LinkedIn':
+        full_content = full_content.replace('# ', '#')
     cleaned_content = re.sub(r'(?<!#)\b(?<!\w)(\w+)\b(?!\w)', r' \1 ', full_content)
     cleaned_content2 = re.sub('\s+', ' ', cleaned_content).strip()
     word_list = [str(w).strip() for w in cleaned_content2.split(' ') if
@@ -406,28 +408,32 @@ if __name__ == '__main__':
     dict_frequencies = {}
     dict_w_h = {}
     for platform, df in dict_posts.items():
-        rank_by = ['Likes', 'Kommentare', 'Interaktionsrate']
+        rank_by = ['Likes', 'Kommentaren', 'Interaktionsrate']
         for _by in rank_by:
             df_frequencies = freq_in_posts(_by, platform, df)
-            tab_name = platform[:1] + '_Top100_' + _by
-            if len(tab_name) >= 31:
-                tab_name = tab_name[:31]
-            dict_frequencies[tab_name] = df_frequencies
+            if _by == rank_by[0]:
+                table_frequencies = df_frequencies
+                continue
+            table_frequencies = pd.concat([table_frequencies, df_frequencies], axis=1)
+        tab_name = platform + '_Top100'
+        dict_frequencies[tab_name] = table_frequencies
 
         content_list = list(df['Content'])
-        df_w_h = get_words_and_hashtags(content_list)
-        dict_w_h[platform] = df_w_h
+        df_w_h = get_words_and_hashtags(content_list, platform)
+        dict_w_h[platform[0] + '_Wordcount'] = df_w_h
+    ordered_dict_posts.update((p, df) for p, df in dict_frequencies.items())
+    ordered_dict_posts.update((p, df) for p, df in dict_w_h.items())
 
 
     # Export to excel
+    os.chdir(file_path)
     date_str = datetime.now().strftime("%Y%m%d")
     name_profiles = 'Kanäle_Supplements ' + date_str + '.xlsx'
     name_posts = 'Beiträge_Supplements ' + date_str + '.xlsx'
 
-    os.chdir(file_path)
     with pd.ExcelWriter(name_profiles, engine='xlsxwriter') as writer:
-        for platform, df in ordered_dict_profiles.items():
-            df.to_excel(writer, sheet_name=platform)
+        for title, df in ordered_dict_profiles.items():
+            df.to_excel(writer, sheet_name=title)
     with pd.ExcelWriter(name_posts, engine='xlsxwriter') as writer:
-        for platform, df in ordered_dict_posts.items():
-            df.to_excel(writer, sheet_name=platform)
+        for title, df in ordered_dict_posts.items():
+            df.to_excel(writer, sheet_name=title)
