@@ -22,13 +22,17 @@ import os
 # Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
-file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
-source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
-branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
-                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 startpage = 'https://www.tiktok.com/'
 platform = 'TikTok'
 dt_str_now = None
+
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024"
+source_file = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024\Brauereien_Auswahl_2024-06-16.xlsx"
+branch_keywords = ['Brauerei', 'Brauhaus', 'Bräu', 'braeu', 'Bier', 'brewing']
+#branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
+#                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
+#file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
+#source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
 ########################################################################################################################
 
 # A function to open the targetpage and scrape the profile stats
@@ -122,7 +126,6 @@ if __name__ == '__main__':
         data.append(full_row)
         print(count,full_row[:-1])
 
-
     # DataFrame
     header = ['ID', 'company', 'date', 'profile_name', 'pagelikes', 'follower', 'following', 'last_post', 'url',
               'desc_link', 'description']
@@ -214,7 +217,7 @@ def scrape_post(count, p_name, video_info):
         time.sleep(2)
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = get_visible_text(Comment, soup)
-    if len(pagetext) <= 100 or 'Puzzleteil' in pagetext or 'Verifiziere' in pagetext:
+    if len(pagetext) <= 100 or 'Puzzleteil' in pagetext or 'Verifiziere' in pagetext or 'Schieberegler' in pagetext:
         input('Press ENTER after solving the captcha')
         time.sleep(1)
         soup = BeautifulSoup(driver.page_source, 'lxml')
@@ -280,14 +283,15 @@ if __name__ == '__main__':
         id = str(row['ID'])
         url = str(row['url'])
         p_name = str(row['profile_name'])
-        go_crawl = check_conditions(n, p_name, url, row, lower_dt, start_at=42)
+        go_crawl = check_conditions(n, p_name, url, row, lower_dt, start_at=13)
         if not go_crawl:
             continue
-        break
+        if 'bsn' in p_name.lower():
+            break
         video_info_list = get_videolinks(driver)
         if not video_info_list or len(video_info_list) == 0:
             input('Press ENTER after solving website issues')
-            video_info_list = get_videolinks(driver, url)
+            video_info_list = get_videolinks(driver)
         if not video_info_list or len(video_info_list) == 0:
             continue
         data_per_company = []
@@ -321,3 +325,12 @@ if __name__ == '__main__':
         dfPosts.to_excel(file_name)
 
     driver.quit()
+
+'''
+time.sleep(4)
+x,y = pyautogui.position()
+print(str(x)+ "," + str(y))
+time.sleep(4)
+pyautogui.moveTo(1277,587)
+pyautogui.click()
+'''

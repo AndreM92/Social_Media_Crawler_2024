@@ -54,7 +54,7 @@ def post_crawler_settings(file, platform, dt_str_now):
     df_source = pd.read_excel(filename)
     dt = datetime.now()
     dt_str = dt.strftime("%d.%m.%Y")
-    upper_dt = datetime.strptime('2024-01-01', '%Y-%m-%d')
+    upper_dt = datetime.strptime('2024-05-31', '%Y-%m-%d')
     lower_dt = upper_dt - timedelta(days=365)
     return df_source, dt, dt_str, upper_dt, lower_dt
 
@@ -225,7 +225,7 @@ def extract_every_number(element, float_number = False):
 # Filter for company name parts
 def get_company_keywords(company, row, col_list):
     comp_l1 = company.replace('-','').replace('.','').split()
-    comp_l2 = company.replace('-','').replace('.','').split()
+    comp_l2 = company.replace('_',' ').replace('.','').split()
     comp_l3 = company.lower().replace('ä','ae').replace('ö','oe').replace('ü','ue').split()
     comp_l4 = company.split()
     comp_l = list(set(comp_l1 + comp_l2 + comp_l3 + comp_l4))
@@ -239,6 +239,8 @@ def get_company_keywords(company, row, col_list):
             sm_linkpart = n.lower() + '.com'
             if sm_linkpart in addkey:
                 sm_name = addkey.split(sm_linkpart)[1].replace('/', '').strip().lower()
+                if '?' in sm_name:
+                    sm_name = sm_name.split('?')[0]
                 comp_keywords.append(sm_name.lower())
     comp_keywords = list(set(comp_keywords))
     return comp_keywords
@@ -426,7 +428,7 @@ def get_approx_date(crawl_date_dt, date_str):
 def get_text_from_screenshot(driver, p_name):
     path_tes = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     pytesseract.tesseract_cmd = path_tes
-    forbidden_chars = ['|','.',',','-']
+    forbidden_chars = ['|','.',',','-','„','"','/']
     for c in forbidden_chars:
         p_name = p_name.replace(c,'_')
     saving_path = os.getcwd() + '/Screenshots/' + p_name + '.png'
