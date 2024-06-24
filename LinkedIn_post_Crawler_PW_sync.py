@@ -66,9 +66,55 @@ def get_postlinks(page):
     open_menus = page.query_selector_all('svg[aria-label="Kontrollmenü öffnen"]')
     if len(open_menus) == 0:
         open_menus = page.query_selector_all('svg[a11y-text="Kontrollmenü öffnen"]')
+    if len(open_menus) == 0:
+        open_menus = page.query_selector_all('button[aria-label="Kontrollmenü öffnen"]')
     for o in open_menus:
         page.evaluate("(element) => { element.scrollIntoView(); }", o)
+        time.sleep(1)
+        o.hover()
+        #Error
+        try:
+            o.click(force=True)
+        except:
+            pass
+
+    # Selector for the button with aria-label "Kontrollmenü öffnen"
+    button_selector = 'button[aria-label="Kontrollmenü öffnen"]'
+    # Locate all matching buttons
+    buttons = page.locator(button_selector).all()
+    # Check visibility for each button
+    for button in buttons:
+        if button.is_visible():
+            # Hover over the button
+            button.hover()
+            # Click the button
+            button.click()
+            break  # Stop after clicking the first visible button
+
+    time.sleep(3)
+    page.locator("ember284").click()
+
+    page.evaluate("(element) => { element.scrollIntoView(); }", button)
+    button.click()
+    time.sleep(3)
+    button.highlight()
+
+        retries = 3  # Set the number of retries as needed
+        for attempt in range(retries):
+            try:
+                # Wait for the element to be present with a short timeout
+                page.wait_for_selector(f'#{o.evaluate("el => el.id")}', timeout=5000)  # Set the timeout in milliseconds
+
+                # Click the element with force option set to True
+                o.click(force=True)
+                # Add a wait after clicking (e.g., 1 second delay)
+                time.sleep(1)
+                break  # Break out of the loop if click is successful
+            except Exception as e:
+                if attempt < retries - 1:
+                    time.sleep(1)
         o.click()
+
         # Error
         dropdown_selector = 'div.artdeco-dropdown__content-inner:visible'
         try:
@@ -168,9 +214,11 @@ login(page, cred.useremail_li, cred.password_li)
 for id, row in df_source.iterrows():
     if len(str(row['last post'])) <= 4 or str(row['last post']).strip() == 'Keine Beiträge':
         continue
+    if id != 411:
+        continue
     p_name = row['Profilname']
     url = row['url']
-
+    break
     data_per_company = main_postscraper(id, p_name, url, upper_dt, dt_now)
     data += data_per_company
 
@@ -186,7 +234,7 @@ dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
 file_name = 'Beiträge_LinkedIn' + dt_str_now + '.xlsx'
 dfPosts.to_excel(file_name)
 
-
+#https://www.linkedin.com/company/sauber-energie/posts/?feedView=all
 
 browser.close()
 pw.stop

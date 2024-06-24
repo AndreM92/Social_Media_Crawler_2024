@@ -22,13 +22,16 @@ import os
 # Settings
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
-file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
-source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
-branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
-                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024"
+source_file = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024\Brauereien_Auswahl_2024-06-16.xlsx"
+
 startpage = 'https://www.linkedin.com/login/de'
 platform = 'LinkedIn'
 dt_str_now = None
+
+branch_keywords = ['Brauerei', 'Brauhaus', 'Bräu', 'braeu', 'Bier', 'brewing']
+#branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
+#                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 ########################################################################################################################
 
 # Login function
@@ -121,6 +124,8 @@ def scrapeProfile(company, link):
         last_date_elem = posts[0].find('div', class_='t-black--light t-14')
     if not last_date_elem:
         last_date_elem = posts[0].find('div', class_='update-components-text-view break-words')
+    if not last_date_elem:
+        last_date_elem = posts[0].find('div', class_='update-components-actor__meta relative')
     if last_date_elem:
         last_date_str = extract_text(last_date_elem)
         if '•' in last_date_str:
@@ -149,8 +154,9 @@ if __name__ == '__main__':
     count = 0
     for id, row in df_source.iterrows():
         count += 1
-        if count >= 0:   # If you want to skip some rows
+        if count <= 0:   # If you want to skip some rows
             continue
+
         company = extract_text(row[name_header])
         link = str(row[platform])
         if len(link) < 10:
@@ -165,7 +171,7 @@ if __name__ == '__main__':
 
 
     # Create a DataFrame
-    header = ['ID', 'company', 'date', 'profile_name', 'follower', 'employees', 'last_post', 'link', 'tagline',
+    header = ['ID', 'company', 'date', 'profile_name', 'follower', 'employees', 'last_post', 'url', 'tagline',
               'description1', 'description2']
     df_profiles = pd.DataFrame(data, columns=header)
 
@@ -190,25 +196,31 @@ def scroll_to_bottom():
         new_height = driver.execute_script('return document.body.scrollHeight')
         safety_counter += 1
 
-def check_conditions(id, p_name, url, row, lower_dt, start_at=0):
+def check_conditions(id, p_name, row, lower_dt, start_at=0):
     if id < start_at:      # If you want to skip some rows
         return False
     if len(p_name) == 0 or p_name.lower() == 'nan' or p_name == 'None':
         return False
-    posts = str(row['last_post'])
-    if len(url) < 10 or len(posts) <= 4 or 'Keine Beiträge' in posts:
-        print([id, p_name, url])
+    url = str(row['url'])
+    date_element = row['last_post']
+    if not isinstance(date_element, datetime):
+        last_datestr = extract_text(date_element)
+        if not last_datestr or len(url) < 10 or len(last_posts) <= 4 or 'Keine Beiträge' in last_posts:
+            print([id, url, 'no posts'])
+            return False
+        try:
+            date_element = datetime.strptime(last_datestr, "%d.%m.%Y")
+        except:
+            return False
+    if (lower_dt + timedelta(days=31)) > date_element:
         return False
     try:
-        last_datestr = extract_text(row['last_post'])
-        last_dt = datetime.strptime(last_datestr, "%d.%m.%Y")
-        if (last_dt + timedelta(days=31)) < lower_dt:
-            return False
         driver.get(url + 'posts/?feedView=all')
         time.sleep(2)
-        return True
     except:
         return False
+    return True
+
 
 def scrape_post(p):
     post_date_dt = datetime.now()
@@ -265,6 +277,7 @@ if __name__ == '__main__':
     os.chdir(file_path)
     file ='Profile_LinkedIn_2024'
     df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
+    current_id = 0
 
     # Current date
     upper_dt = datetime.now()
@@ -280,9 +293,11 @@ if __name__ == '__main__':
         id = row['ID']
         url = str(row['url'])
         p_name = str(row['profile_name'])
-        go_crawl = check_conditions(n, p_name, url, row, lower_dt, start_at=27) # Start at the row 0
+        go_crawl = check_conditions(n, p_name, row, lower_dt, start_at=current_id) # Start at the row 0
         if not go_crawl:
             continue
+        current_id = id
+
         scroll_to_bottom()
         soup = BeautifulSoup(driver.page_source, 'lxml')
         posts = soup.find_all('div', class_='ember-view occludable-update')
@@ -305,7 +320,7 @@ if __name__ == '__main__':
         all_data += data_per_company
 
         # Create a DataFrame with all posts
-        header1 = ['ID_A', 'Profilname', 'ID_P', 'Datum_Erhebung', 'Datum_Beitrag']
+        header1 = ['ID_A', 'Profilname', 'ID_P', 'Erhebung', 'Datum']
         header2 = ['Likes', 'Kommentare', 'Shares', 'Bild', 'Video', 'Link', 'Content']
         dfPosts = pd.DataFrame(all_data, columns=header1 + header2)
 
