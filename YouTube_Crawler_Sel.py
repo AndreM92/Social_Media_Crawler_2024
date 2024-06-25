@@ -19,15 +19,18 @@ from datetime import datetime, timedelta
 import os
 # Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
-
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
-file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
-source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
-branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
-                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 startpage = 'https://www.youtube.com/'
 platform = 'YouTube'
 dt_str_now = None
+
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024"
+source_file = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024\Brauereien_Auswahl_2024-06-16.xlsx"
+branch_keywords = ['Brauerei', 'Brauhaus', 'Bräu', 'braeu', 'Bier', 'brewing']
+#branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
+#                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
+#file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
+#source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
 ########################################################################################################################
 
 def crawlVideo(link):
@@ -201,7 +204,7 @@ if __name__ == '__main__':
 
     # Start crawling
     data = []
-    driver = start_browser(webdriver, Service, chromedriver_path, headless=True, muted=True)
+    driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
 
     # Iterating over the companies
@@ -249,6 +252,8 @@ def getVideolinks(url):
         time.sleep(4)
     except:
         return []
+    driver.execute_script("window.scrollBy(0, 3000);")
+    time.sleep(2)
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = extract_text(get_visible_text(Comment, soup))
     if 'potenziell unangemessene Inhalte' in pagetext or 'existiert nicht' in pagetext or 'Automatisch von YouTube erstellt' in pagetext:
@@ -274,18 +279,18 @@ def getVideolinks(url):
 
 def check_conditions(id, row, start_at=0):
     if id < start_at:      # If you want to skip some rows
-        return True
-    p_name = str(row['profile_name'])
-    if len(p_name) == 0 or p_name.lower() == 'nan' or p_name == 'None':
         return False
-    posts = str(row['last_post'])
-    if len(url) < 10 or len(posts) <= 4 or 'Keine Beiträge' in posts:
+    p_name = str(row['profile_name'])
+    if len(p_name) <= 1 or p_name.lower() == 'nan' or p_name == 'None':
+        return False
+    last_post = str(row['last_post'])
+    url = str(row['url'])
+    if len(url) < 10 or len(last_post) <= 4 or 'Keine Beiträge' in last_post:
         print([id, p_name, '', dt_str] + [url])
         return False
     try:
-        last_datestr = extract_text(row['last_post'])
-        last_dt = datetime.strptime(last_datestr, "%d.%m.%Y")
-        if (lower_dt - timedelta(days=31)) > last_dt:
+        last_dt = datetime.strptime(last_post, "%d.%m.%Y")
+        if (lower_dt - timedelta(days=31)) < last_dt:
             return True
     except:
         return False
@@ -334,9 +339,10 @@ if __name__ == '__main__':
     # Iterate over the companies
     for count, row in df_source.iterrows():
         url = str(row['url'])
-        skip = check_conditions(count,row,start_at=115)
-        if skip:
+        go_crawl = check_conditions(count,row,start_at=5)
+        if not go_crawl:
             continue
+
         # Restart the driver after 3 companies
         if count % 3 == 0:
             driver.quit()
