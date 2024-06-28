@@ -277,23 +277,26 @@ def getVideolinks(url):
 #    print(f'Anzahl der Videolinks: {len(videolinks)}')
     return videolinks
 
-def check_conditions(id, row, start_at=0):
-    if id < start_at:      # If you want to skip some rows
+def check_conditions(count, row, start_at=0):
+    if count < start_at:      # If you want to skip some rows
         return False
     p_name = str(row['profile_name'])
-    if len(p_name) <= 1 or p_name.lower() == 'nan' or p_name == 'None':
-        return False
-    last_post = str(row['last_post'])
     url = str(row['url'])
-    if len(url) < 10 or len(last_post) <= 4 or 'Keine Beiträge' in last_post:
-        print([id, p_name, '', dt_str] + [url])
+    if len(p_name) <= 1 or p_name.lower() == 'nan' or p_name == 'None' or len(url) < 10:
         return False
-    try:
-        last_dt = datetime.strptime(last_post, "%d.%m.%Y")
-        if (lower_dt - timedelta(days=31)) < last_dt:
-            return True
-    except:
-        return False
+    date_element = row['last_post']
+    if not isinstance(date_element, datetime):
+        last_datestr = extract_text(date_element)
+        if not last_datestr or len(url) < 10 or len(last_posts) <= 4 or 'Keine Beiträge' in last_posts:
+            print([id, url, 'no posts'])
+            return False
+        try:
+            date_element = datetime.strptime(last_datestr, "%d.%m.%Y")
+        except:
+            return False
+    if (lower_dt - timedelta(days=31)) < date_element:
+        return True
+    return False
 
 def crawl_all_videos(dt_str, row, videolinks):
     id = str(row['ID'])
@@ -339,7 +342,8 @@ if __name__ == '__main__':
     # Iterate over the companies
     for count, row in df_source.iterrows():
         url = str(row['url'])
-        go_crawl = check_conditions(count,row,start_at=5)
+        print(count, url)
+        go_crawl = check_conditions(count,row,start_at=0)
         if not go_crawl:
             continue
 
