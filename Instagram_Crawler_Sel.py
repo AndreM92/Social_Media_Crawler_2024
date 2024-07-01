@@ -24,13 +24,17 @@ import os
 # Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
-file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
-source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
-branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
-                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 dt_str_now = None
+
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024"
+source_file = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024\Brauereien_Auswahl_2024-06-16.xlsx"
+branch_keywords = ['Brauerei', 'Brauhaus', 'Bräu', 'braeu', 'Bier', 'brewing']
+#branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
+#                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
+#file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
+#source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
 ########################################################################################################################
 
 def remove_insta_cookies():
@@ -67,8 +71,8 @@ def login(username, password):
         remove_insta_cookies()
 
 # This function scrapes the details of every profile
-def scrapeProfile(link, comp_keywords):
-    driver.get(link)
+def scrapeProfile(url, comp_keywords):
+    driver.get(url)
     p_name, total_posts, follower, last_post, new_url, desc = ['' for _ in range(6)]
     time.sleep(4)
     new_url = driver.current_url
@@ -132,7 +136,7 @@ def scrapeProfile(link, comp_keywords):
         driver.get(p_links[0])
         time.sleep(2)
         soup_post = BeautifulSoup(driver.page_source,'lxml')
-        last_post = soup_post.find('time',class_='_aaqe')
+        last_post = soup_post.find('time',class_='x1p4m5qa')
         if last_post:
             last_post = last_post['datetime'].split('T')[0]
             last_dt = datetime.strptime(last_post,'%Y-%m-%d')
@@ -177,7 +181,7 @@ if __name__ == '__main__':
 
     # DataFrame
     header = ['ID', 'company', 'date', 'profile_name', 'all_posts', 'follower', 'last_post', 'url', 'description']
-    df_profiles = pd.DataFrame(new_data,columns=header)
+    df_profiles = pd.DataFrame(data,columns=header)
     df_profiles.set_index('ID')
 
     # Export to Excel
@@ -195,7 +199,7 @@ def clickOnFirst(startlink):
     if len(posts) >= 1:
         try:
             posts[0].click()
-            time.sleep(2)
+            time.sleep(3)
             post_url = driver.current_url
             if post_url != startlink and 'instagram.com' in str(post_url):
                 return post_url
@@ -203,7 +207,7 @@ def clickOnFirst(startlink):
             pass
     pyautogui.moveTo(690, 980)
     pyautogui.click()
-    time.sleep(2)
+    time.sleep(3)
     post_url = driver.current_url
     if post_url != startlink and 'instagram.com' in post_url:
         return post_url
@@ -213,7 +217,7 @@ def clickOnFirst(startlink):
 def nextPost(startlink):
     try:
         driver.find_element(By.CSS_SELECTOR, 'svg[aria-label="Weiter"]').click()
-        time.sleep(1)
+        time.sleep(2)
     except:
         pyautogui.moveTo(1865, 575)
         pyautogui.click()
@@ -221,7 +225,7 @@ def nextPost(startlink):
     if startlink == driver.current_url:
         try:
             driver.find_element(By.CSS_SELECTOR, 'svg[aria-label="Weiter"]').click()
-            time.sleep(1)
+            time.sleep(2)
         except:
             pyautogui.moveTo(1865, 575)
             pyautogui.click()
@@ -229,7 +233,7 @@ def nextPost(startlink):
     if startlink == driver.current_url:
         try:
             driver.find_element(By.CSS_SELECTOR, 'svg[aria-label="Weiter"]').click()
-            time.sleep(1)
+            time.sleep(2)
         except:
             pyautogui.moveTo(1865, 575)
             pyautogui.click()
@@ -272,6 +276,10 @@ def comment_crawler(driver, post_text):
         comments,soup = get_commentnumber(old_comments)
         if old_comments == comments:
             break
+        # If there are too much comments, scrape them later
+        if comments >= 200:
+            comments = 200
+            break
     return comments
 
 # Clicking with pyautogui led to many errors so I will scrape the correct higher comment counts later (with the post links)
@@ -302,7 +310,7 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
     post_dt = None
     soup = BeautifulSoup(driver.page_source, 'lxml')
     post_text = get_visible_text(Comment, soup)
-    date_elem = soup.find('time', class_='_aaqe')
+    date_elem = soup.find('time', class_='x1p4m5qa')
     if date_elem:
         post_dt_str = date_elem['datetime'].split('T')[0]
         post_dt = datetime.strptime(post_dt_str, '%Y-%m-%d')
@@ -391,6 +399,8 @@ def check_page(row):
         driver.get(url)
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, 'svg[aria-label="Instagram"]')))
+        # Additional waiting
+        time.sleep(1)
         post_url = clickOnFirst(driver.current_url)
     except:
         post_url = None
@@ -406,6 +416,8 @@ if __name__ == '__main__':
     import credentials_file as cred
     os.chdir(file_path)
     file ='Profile_' + platform + '_2024'
+    # if the file cant't be found, set dt_str_now to none
+    dt_str_now = None
     df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
 
     # Driver and Browser setup
@@ -413,25 +425,33 @@ if __name__ == '__main__':
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
     login(cred.username_insta, cred.password_insta)
+    time.sleep(2)
 
     # Loop
+    start_time = time.time()
     for count, row in df_source.iterrows():
-        crawl = check_conditions(count,row,start_at=23)
-        if not crawl:
-            continue
-        id, post_url, p_name = check_page(row)
-        break
-        if not post_url:
+        # Instagram will block your account after one hour of scraping
+        # To circumvent this issue, restart your browser after 40 minutes.
+        end_time = time.time()
+        time_diff = end_time - start_time
+        if time_diff >= (40 * 60):
+            start_time = time.time()
             driver.quit()
             time.sleep(5)
             driver = start_browser(webdriver, Service, chromedriver_path)
             go_to_page(driver, startpage)
             login(cred.username_insta2, cred.password_insta2)
-            time.sleep(3)
-            id, post_url, p_name = check_page(row)
-            if not post_url:
-                print(count, [id, p_name, '', dt_str, post_url])
-                continue
+            time.sleep(2)
+        crawl = check_conditions(count,row,start_at=0)
+        if not crawl:
+            continue
+        
+        url = row['url']
+        id, post_url, p_name = check_page(row)
+        if not post_url or not url:
+            print(count, [id, p_name, '', dt_str, url])
+            continue
+
         data_per_company = []
         oor_posts = 0
         p_num = 0
@@ -444,7 +464,7 @@ if __name__ == '__main__':
                 if oor_posts <= 2:
                     post_url = nextPost(driver.current_url)
                     continue
-                break
+
             if post_dt >= upper_dt:
                 post_url = nextPost(post_url)
                 if not post_url:
@@ -473,6 +493,8 @@ if __name__ == '__main__':
     driver.quit()
 
 ########################################################################################################################
+data_per_company[-2]
+
 
 # Like (and comment count) correction
 if __name__ == '__main__':
@@ -493,7 +515,6 @@ if __name__ == '__main__':
     for id, row in df_fillc.iterrows():
         # Restart the driver after 100 corrections
         if corr > 0 and (corr % 1500 == 0 or corr % 1510 == 0):
-        #if id > 0 and id % 100 == 0:
             driver.quit()
             time.sleep(5)
             driver = start_browser(webdriver, Service, chromedriver_path)
@@ -507,7 +528,7 @@ if __name__ == '__main__':
                 driver.get(str(likes))
                 WebDriverWait(driver, 7).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, 'svg[aria-label="Instagram"]')))
-                time.sleep(1)
+                time.sleep(2)
             except:
                 try:
                     pyautogui.moveTo(1277, 587)
@@ -527,7 +548,7 @@ if __name__ == '__main__':
                     soup = BeautifulSoup(driver.page_source,'html.parser')
                     likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
             corr += 1
-        if ((not comments and not '0' in str(comments)) or str(comments) == 'nan' or str(comments) == ''): #or 15 >= comments >= 10
+        if ((not comments and not '0' in str(comments)) or str(comments) == 'nan' or str(comments) == ''): #or comments >= 200
             try:
                 driver.get(row['Link'])
                 WebDriverWait(driver, 7).until(
