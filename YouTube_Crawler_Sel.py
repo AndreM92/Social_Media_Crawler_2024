@@ -23,10 +23,11 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.youtube.com/'
 platform = 'YouTube'
 dt_str_now = None
+upper_datelimit = '2024-08-31'
 
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024"
-source_file = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024\Brauereien_Auswahl_2024-06-16.xlsx"
-branch_keywords = ['Brauerei', 'Brauhaus', 'Bräu', 'braeu', 'Bier', 'brewing']
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Krankenkassen_2024"
+source_file = r"C:\Users\andre\OneDrive\Desktop\SMP_Krankenkassen_2024\Auswahl_Krankenkassen.xlsx"
+branch_keywords = ['Kranken', 'Gesundheit', 'Leistung']
 #branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
 #                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 #file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
@@ -161,19 +162,30 @@ def scrapeProfile(url):
         p_name2 = p_name[round((len(p_name)/2)):].strip()
         if p_name1[:-1] in p_name2:
             p_name = p_name1
+    if not p_name or len(p_name)<=4:
+        headers = [extract_text(e) for e in soup.find_all('h1')]
+        for h in headers:
+            if len(h) > 4:
+                p_name = h
+                break
     follower_elem = extract_text(soup.find('yt-formatted-string',{'id':'subscriber-count'}))
     if follower_elem and 'abonnent' in follower_elem.lower():
         follower = extract_every_number(follower_elem)
-    videocount_elem = extract_text(soup.find('yt-formatted-string',{'id':'videos-count'}))
-    if videocount_elem and 'video' in videocount_elem.lower():
-        total_posts = extract_every_number(videocount_elem)
+    span_text = [extract_text(e) for e in soup.find_all('span')]
+    for s in span_text:
+        if 'Abonnenten' in s and not follower:
+            follower = extract_every_number(s)
+        if 'Videos' in s and not total_posts:
+            total_posts = extract_every_number(s)
+        if follower and total_posts:
+            break
     video_d = soup.find_all('div', {'id': 'details'})
     if len(video_d) >= 1:
         videolinks = ['https://www.youtube.com' + v.find('a', href=True)['href'] for v in video_d if v.find('a', href=True)]
         if len(videolinks) >= 1:
             v_link = videolinks[0]
     driver.get(new_url + '/about')
-    time.sleep(2)
+    time.sleep(3)
     if not '/about' in driver.current_url:
         try:
             desc_link = driver.find_element('xpath', "//*[contains(text(), 'weitere Links')]")
@@ -225,6 +237,7 @@ if __name__ == '__main__':
         full_row = [id, company, dt_str] + scraped_data
         data.append(full_row)
         print(count,full_row[:-1])
+
 
     # DataFrame
     header = ['ID', 'company', 'date', 'profile_name', 'follower', 'all_posts', 'last_post', 'url', 'description']
@@ -282,12 +295,13 @@ def check_conditions(count, row, start_at=0):
         return False
     p_name = str(row['profile_name'])
     url = str(row['url'])
+    last_post = str(row['last_post'])
     if len(p_name) <= 1 or p_name.lower() == 'nan' or p_name == 'None' or len(url) < 10:
         return False
     date_element = row['last_post']
     if not isinstance(date_element, datetime):
         last_datestr = extract_text(date_element)
-        if not last_datestr or len(url) < 10 or len(last_posts) <= 4 or 'Keine Beiträge' in last_posts:
+        if not last_datestr or len(url) < 10 or len(last_post) <= 4 or 'Keine Beiträge' in last_post:
             print([id, url, 'no posts'])
             return False
         try:
@@ -332,7 +346,7 @@ if __name__ == '__main__':
     import credentials_file as cred
     os.chdir(file_path)
     file ='Profile_' + platform + '_2024'
-    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
+    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
 
     # Driver and Browser setup
     all_data = []
@@ -347,14 +361,6 @@ if __name__ == '__main__':
         if not go_crawl:
             continue
 
-        # Restart the driver after 3 companies
-        if count % 3 == 0:
-            driver.quit()
-            time.sleep(5)
-            driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
-            go_to_page(driver, startpage)
-            time.sleep(1)
-
         videolinks = getVideolinks(url)
         if len(videolinks) == 0:
             print([count, str(row['ID']), 'Page not available'])
@@ -362,6 +368,7 @@ if __name__ == '__main__':
 
         data_per_company = crawl_all_videos(dt_str, row, videolinks)
         all_data += data_per_company
+
 
         # Create a DataFrame with all posts
         header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
@@ -373,6 +380,17 @@ if __name__ == '__main__':
         file_name = 'Beiträge_' + platform + '_' + dt_str_now + '.xlsx'
         dfPosts.to_excel(file_name)
 
+
     driver.quit()
 ########################################################################################################################
 print(all_data[-1])
+
+
+'''        # Restart the driver after 3 companies
+        if count % 3 == 0:
+            driver.quit()
+            time.sleep(5)
+            driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
+            go_to_page(driver, startpage)
+            time.sleep(1)
+'''
