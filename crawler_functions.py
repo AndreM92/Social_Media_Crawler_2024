@@ -34,13 +34,15 @@ def settings(source_file):
             comp_header = e
         if not name_header and 'Name' in e:
             name_header = e
+    comp_header = comp_header or name_header
+    name_header = name_header or comp_header
     dt = datetime.now()
     dt_str = dt.strftime("%d.%m.%Y")
     return df_source, col_list, comp_header, name_header, dt, dt_str
 
 
 # Settings for the post crawler
-def post_crawler_settings(file, platform, dt_str_now):
+def post_crawler_settings(file, platform, dt_str_now, upper_datelimit):
     filename = None
     if not dt_str_now:
         for f in os.listdir():
@@ -54,7 +56,7 @@ def post_crawler_settings(file, platform, dt_str_now):
     df_source = pd.read_excel(filename)
     dt = datetime.now()
     dt_str = dt.strftime("%d.%m.%Y")
-    upper_dt = datetime.strptime('2024-05-31', '%Y-%m-%d')
+    upper_dt = datetime.strptime(upper_datelimit, '%Y-%m-%d')
     lower_dt = upper_dt - timedelta(days=365)
     return df_source, dt, dt_str, upper_dt, lower_dt
 
@@ -377,6 +379,8 @@ def dateFormat(d):
 
     day = str(day).replace('-','')
     day = str(day).zfill(2)
+    if day == '00':
+        day = '01'
     month = str(month).zfill(2)
     date_string = f'{day}.{month}.{year}'
     dt_format = datetime.strptime(date_string, '%d.%m.%Y')
