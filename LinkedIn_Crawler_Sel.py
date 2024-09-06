@@ -22,14 +22,14 @@ import os
 # Settings
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024"
-source_file = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024\Brauereien_Auswahl_2024-06-16.xlsx"
-
 startpage = 'https://www.linkedin.com/login/de'
 platform = 'LinkedIn'
 dt_str_now = None
+upper_datelimit = '2024-08-31'
 
-branch_keywords = ['Brauerei', 'Brauhaus', 'Bräu', 'braeu', 'Bier', 'brewing']
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Krankenkassen_2024"
+source_file = r"C:\Users\andre\OneDrive\Desktop\SMP_Krankenkassen_2024\Auswahl_Krankenkassen.xlsx"
+branch_keywords = ['Kranken', 'Gesundheit', 'Leistung']
 #branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
 #                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 ########################################################################################################################
@@ -202,17 +202,18 @@ def check_conditions(id, p_name, row, lower_dt, start_at=0):
     if len(p_name) == 0 or p_name.lower() == 'nan' or p_name == 'None':
         return False
     url = str(row['url'])
-    date_element = row['last_post']
-    if not isinstance(date_element, datetime):
-        last_datestr = extract_text(date_element)
-        if not last_datestr or len(url) < 10 or len(last_posts) <= 4 or 'Keine Beiträge' in last_posts:
+    last_post = row['last_post']
+    if len(url) < 10 or 'Keine Beiträge' in str(last_post):
+        return False
+    if not isinstance(last_post, datetime):
+        last_datestr = extract_text(last_post)
+        try:
+            last_post = datetime.strptime(last_datestr, "%d.%m.%Y")
+        except:
             print([id, url, 'no posts'])
             return False
-        try:
-            date_element = datetime.strptime(last_datestr, "%d.%m.%Y")
-        except:
-            return False
-    if (lower_dt + timedelta(days=31)) > date_element:
+#    if not last_datestr or len(url) < 10 or len(last_posts) <= 4 or 'Keine Beiträge' in last_posts:
+    if (lower_dt + timedelta(days=31)) > last_post:
         return False
     try:
         driver.get(url + 'posts/?feedView=all')
@@ -276,7 +277,7 @@ if __name__ == '__main__':
     import credentials_file as cred
     os.chdir(file_path)
     file ='Profile_LinkedIn_2024'
-    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
+    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
     current_id = 0
 
     # Current date
@@ -288,6 +289,7 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
     login(cred.useremail_li, cred.password_li)
 
+    current_id = 0
     # Iterate over the companies
     for n, row in df_source.iterrows():
         id = row['ID']
@@ -308,7 +310,7 @@ if __name__ == '__main__':
         id_p = 0
         for count, p in enumerate(posts):
             post_dt, postdata = scrape_post(p)
-            print(post_dt, postdata)
+            print(postdata)
             if post_dt >= upper_dt:
                 continue
             if post_dt < lower_dt:
@@ -326,7 +328,7 @@ if __name__ == '__main__':
 
         # Export dfPosts to Excel (with the current time)
         dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-        file_name = 'Beiträge_' + platform + dt_str_now + '.xlsx'
+        file_name = 'Beiträge_' + platform + '_' + dt_str_now + '.xlsx'
         dfPosts.to_excel(file_name)
 
     driver.quit()
