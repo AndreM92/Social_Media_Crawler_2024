@@ -1,3 +1,4 @@
+
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -21,20 +22,18 @@ import re
 from datetime import datetime, timedelta
 
 import os
+
 # Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 dt_str_now = None
+upper_datelimit = '2025-02-01'
 
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024"
-source_file = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024\Brauereien_Auswahl_2024-06-16.xlsx"
-branch_keywords = ['Brauerei', 'Brauhaus', 'Bräu', 'braeu', 'Bier', 'brewing']
-#branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
-#                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
-#file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
-#source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Arzneimittelhersteller_2025"
+source_file = file_path + '\Auswahl_Arzneimittelhersteller 2025_2025-02-05.xlsx'
+branch_keywords = ['Pharma', 'Arznei', 'Medikament', 'Wirkstoff', 'Supplement', 'Forschung', 'Studie', 'Medizin', 'leistung', 'Krank', 'krank']
 ########################################################################################################################
 
 def remove_insta_cookies():
@@ -179,6 +178,7 @@ if __name__ == '__main__':
         data.append(full_row)
         print(count,full_row[:-1])
 
+
     # DataFrame
     header = ['ID', 'company', 'date', 'profile_name', 'all_posts', 'follower', 'last_post', 'url', 'description']
     df_profiles = pd.DataFrame(data,columns=header)
@@ -212,7 +212,6 @@ def clickOnFirst(startlink):
     if post_url != startlink and 'instagram.com' in post_url:
         return post_url
     return None
-
 
 def nextPost(startlink):
     try:
@@ -306,21 +305,28 @@ def get_commentnumber(old_comments = 0):
 
 
 def scrape_post(post_url, p_name, upper_dt, lower_dt):
-    post_date, likes, comments, image, video, calls, content = ['' for _ in range(7)]
+    post_date, likes, comments, image, video, calls, content, reactions_raw = ['' for _ in range(8)]
     post_dt = None
     soup = BeautifulSoup(driver.page_source, 'lxml')
     post_text = get_visible_text(Comment, soup)
     date_elem = soup.find('time', class_='x1p4m5qa')
-    if date_elem:
-        post_dt_str = date_elem['datetime'].split('T')[0]
-        post_dt = datetime.strptime(post_dt_str, '%Y-%m-%d')
-        if post_dt >= upper_dt:
-            return post_dt, None
-        elif post_dt < lower_dt or not p_name in post_text:
-            return None, None
-        post_date = post_dt.strftime('%d.%m.%Y')
+    if not date_elem:
+        return None, None
+    post_dt_str = extract_text(date_elem['datetime']).split('T')[0].strip()
+    post_dt = datetime.strptime(post_dt_str, '%Y-%m-%d')
+    if post_dt >= upper_dt:
+        return post_dt, None
+    elif post_dt < lower_dt or not p_name in post_text:
+        return None, None
+    post_date = post_dt.strftime('%d.%m.%Y')
     content_elem = soup.find('div', class_='_a9zs')
-    content = extract_text(content_elem)
+    if not content_elem:
+        content_elem = soup.find('article')
+        if content_elem:
+            inner_content = content_elem.find('div',class_='xt0psk2')
+            if inner_content:
+                content_elem = inner_content
+    content = get_visible_text(Comment, content_elem)
     if len(str(content)) <= 4:
         if len(post_text) >= 1200:
             content = post_text
@@ -370,7 +376,11 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
     if not likes or str(likes) == '':
         likes = int(0)
     comments = comment_crawler(driver, post_text)
-    scraped_data = [post_date, likes, comments, image, video, calls, post_url, content]
+    if comments > 0 and post_text != content:
+        if len(str(content)) > 10:
+            reactions_raw = post_text.split(content[-10:])[-1].split('Weitere Beiträge')[0]
+
+    scraped_data = [post_date, likes, comments, image, video, calls, post_url, content,reactions_raw]
     return post_dt, scraped_data
 
 
@@ -378,8 +388,8 @@ def check_conditions(id, row,start_at=0):
     if id < start_at:  # If you want to skip some rows
         return False
     url = str(row['url'])
-    last_posts = str(row['last_post'])
-    if len(url) < 10 or len(last_posts) <= 4 or 'Keine Beiträge' in last_posts:
+    last_post = str(row['last_post'])
+    if len(url) < 10 or len(last_post) <= 4 or 'Keine Beiträge' in last_post:
         print([id, url, 'no posts'])
         return False
     try:
@@ -415,10 +425,13 @@ if __name__ == '__main__':
     from crawler_functions import *
     import credentials_file as cred
     os.chdir(file_path)
-    file ='Profile_' + platform + '_2024'
+    files = os.listdir()
+    for e in files:
+        if 'Profile_Instagram_2025' in str(e):
+            file = extract_text(e)
+            break
     # if the file cant't be found, set dt_str_now to none
-    dt_str_now = None
-    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
+    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
 
     # Driver and Browser setup
     all_data = []
@@ -431,21 +444,10 @@ if __name__ == '__main__':
     start_time = time.time()
     for count, row in df_source.iterrows():
         # Instagram will block your account after one hour of scraping
-        # To circumvent this issue, restart your browser after 40 minutes.
-        end_time = time.time()
-        time_diff = end_time - start_time
-        if time_diff >= (40 * 60):
-            start_time = time.time()
-            driver.quit()
-            time.sleep(5)
-            driver = start_browser(webdriver, Service, chromedriver_path)
-            go_to_page(driver, startpage)
-            login(cred.username_insta2, cred.password_insta2)
-            time.sleep(2)
-        crawl = check_conditions(count,row,start_at=0)
+        # If needed, insert the browser close and restart function here (see below)
+        crawl = check_conditions(count,row,start_at=34)
         if not crawl:
             continue
-        
         url = row['url']
         id, post_url, p_name = check_page(row)
         if not post_url or not url:
@@ -460,10 +462,11 @@ if __name__ == '__main__':
             post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
             if not post_dt:
                 # Pinned posts can be out of the date range
+                if oor_posts > 2:
+                    break
                 oor_posts += 1
-                if oor_posts <= 2:
-                    post_url = nextPost(driver.current_url)
-                    continue
+                post_url = nextPost(driver.current_url)
+                continue
 
             if post_dt >= upper_dt:
                 post_url = nextPost(post_url)
@@ -478,11 +481,12 @@ if __name__ == '__main__':
             post_url = nextPost(driver.current_url)
             if not post_url:
                 break
+
         all_data += data_per_company
 
         # Create a DataFrame with all posts
         header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
-        header2 = ['Likes', 'Kommentare', 'Bild', 'Video', 'Aufrufe', 'Link', 'Content']
+        header2 = ['Likes', 'Kommentare', 'Bild', 'Video', 'Aufrufe', 'Link', 'Content', 'Comments_Text']
         dfPosts = pd.DataFrame(all_data, columns=header1 + header2)
 
         # Export dfPosts to Excel (with the current time)
@@ -490,11 +494,31 @@ if __name__ == '__main__':
         file_name = 'Beiträge_' + platform + '_' + dt_str_now + '.xlsx'
         dfPosts.to_excel(file_name)
 
+        # Close the crawler after two hours
+        end_time = time.time()
+        time_diff = end_time - start_time
+        if time_diff >= (120 * 60):
+            start_time = time.time()
+            driver.quit()
+
     driver.quit()
 
 ########################################################################################################################
 data_per_company[-2]
-
+'''
+# Instagram will block your account after two hours of scraping
+# To circumvent this issue, restart your browser after 120 minutes.
+end_time = time.time()
+time_diff = end_time - start_time
+if time_diff >= (120 * 60):
+    start_time = time.time()
+    driver.quit()
+    time.sleep(5)
+    driver = start_browser(webdriver, Service, chromedriver_path)
+    go_to_page(driver, startpage)
+    login(cred.username_insta2, cred.password_insta2)
+    time.sleep(2)
+'''
 
 # Like (and comment count) correction
 if __name__ == '__main__':
@@ -503,7 +527,7 @@ if __name__ == '__main__':
     from crawler_functions import *
     import credentials_file as cred
     os.chdir(file_path)
-    source_file = 'Beiträge_Instagram_zu_korrigieren.xlsx'
+    source_file = 'Beiträge_Instagram_2024-11-15.xlsx'
     df_fillc = pd.read_excel(source_file)
 
     fill_data = []
@@ -513,14 +537,16 @@ if __name__ == '__main__':
 
     corr = 0
     for id, row in df_fillc.iterrows():
-        # Restart the driver after 100 corrections
-        if corr > 0 and (corr % 1500 == 0 or corr % 1510 == 0):
+        '''
+        # Restart the driver after 150 corrections
+        if corr > 0 and (corr % 150 == 0 or corr % 151 == 0):
             driver.quit()
             time.sleep(5)
             driver = start_browser(webdriver, Service, chromedriver_path)
             go_to_page(driver, startpage)
             login(cred.username_insta, cred.password_insta)
             time.sleep(3)
+        '''
         comments = row['Kommentare']
         likes = row['Likes']
         if 'http' in str(likes):
@@ -548,7 +574,8 @@ if __name__ == '__main__':
                     soup = BeautifulSoup(driver.page_source,'html.parser')
                     likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
             corr += 1
-        if ((not comments and not '0' in str(comments)) or str(comments) == 'nan' or str(comments) == ''): #or comments >= 200
+        if comments >= 20000:
+#        if ((not comments and not '0' in str(comments)) or str(comments) == 'nan' or str(comments) == '' or comments == 200): #or comments >= 200
             try:
                 driver.get(row['Link'])
                 WebDriverWait(driver, 7).until(
