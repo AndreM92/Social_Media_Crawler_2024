@@ -26,8 +26,11 @@ def print_hello(name):
 # General Settings
 def settings(source_file):
     df_source = pd.read_excel(source_file)
-    df_source.set_index('ID',inplace=True)
     col_list = list(df_source.columns)
+    if 'ID_new' in col_list:
+        df_source.rename(columns={'ID_new': 'ID'}, inplace=True)
+    if 'ID' in col_list:
+        df_source.set_index('ID',inplace=True)
     comp_header, name_header = None, None
     for e in col_list:
         if not comp_header and ('Firma' in e or 'Anbieter' in e or 'Marke' in e):
@@ -57,7 +60,7 @@ def post_crawler_settings(file, platform, dt_str_now, upper_datelimit):
     dt = datetime.now()
     dt_str = dt.strftime("%d.%m.%Y")
     upper_dt = datetime.strptime(upper_datelimit, '%Y-%m-%d')
-    lower_dt = upper_dt - timedelta(days=365)
+    lower_dt = upper_dt - timedelta(days=367)
     return df_source, dt, dt_str, upper_dt, lower_dt
 
 # Start the driver and open a new page
@@ -95,6 +98,7 @@ def go_to_page(driver, startpage):
             except:
                 pass
     # Not the best solution so far
+    '''
     cookiebuttons = driver.find_elements(By.TAG_NAME, "tiktok-cookie-banner")
     if len(cookiebuttons) >= 1:
         import pyautogui
@@ -103,6 +107,7 @@ def go_to_page(driver, startpage):
         time.sleep(1)
         pyautogui.moveTo(955, 777)
         pyautogui.click()
+    '''
 
 
 def start_pw_browser(sync_playwright, loginpage):
