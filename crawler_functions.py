@@ -356,13 +356,13 @@ def dateFormat(d):
                 year = new_date.year
         else:
             # Pay attention to the year
-            if (datetime.now() - datetime.strptime('31.12.2023', '%d.%m.%Y')).days <= 6:
+            if (datetime.now() - datetime.strptime('31.12.2024', '%d.%m.%Y')).days <= 6:
                 year = datetime.now().year - 1
             date_ls = d.split('.')
             if len(date_ls) == 2:
                 day, rest = date_ls
             date_ls2 = d.split(' ')
-            if len(date_ls) == 3:
+            if len(date_ls2) == 3:
                 month, day, rest = date_ls2
                 day = day.replace(',','')
                 for key, value in mDictEng.items():
@@ -381,14 +381,20 @@ def dateFormat(d):
                 year = re.sub(r'\D', '', rest)[:4]
             if not str(year).isdigit():
                 year = datetime.now().year
-
     day = str(day).replace('-','')
     day = str(day).zfill(2)
     if day == '00':
         day = '01'
     month = str(month).zfill(2)
     date_string = f'{day}.{month}.{year}'
-    dt_format = datetime.strptime(date_string, '%d.%m.%Y')
+    try:
+        dt_format = datetime.strptime(date_string, '%d.%m.%Y')
+    except:
+        date_string = f'{day}.{month}.{year-1}'
+        dt_format = datetime.strptime(date_string, '%d.%m.%Y')
+    if dt_format > datetime.now():
+        date_string = f'{day}.{month}.{year - 1}'
+        dt_format = datetime.strptime(date_string, '%d.%m.%Y')
     return dt_format
 
 def get_approx_date(crawl_date_dt, date_str):
