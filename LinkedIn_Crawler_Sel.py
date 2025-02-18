@@ -1,3 +1,4 @@
+
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -25,11 +26,11 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.linkedin.com/login/de'
 platform = 'LinkedIn'
 dt_str_now = None
-upper_datelimit = '2024-08-31'
+upper_datelimit = '2025-02-01'
 
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Krankenkassen_2024"
-source_file = r"C:\Users\andre\OneDrive\Desktop\SMP_Krankenkassen_2024\Auswahl_Krankenkassen.xlsx"
-branch_keywords = ['Kranken', 'Gesundheit', 'Leistung']
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Arzneimittelhersteller_2025"
+source_file = file_path + '\Auswahl_Arzneimittelhersteller 2025_2025-02-05.xlsx'
+branch_keywords = ['Pharma', 'Arznei', 'Medikament', 'Wirkstoff', 'Supplement', 'Forschung', 'Studie', 'Medizin', 'leistung', 'Krank', 'krank']
 #branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
 #                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 ########################################################################################################################
@@ -51,6 +52,22 @@ def login(username, password):
     driver.find_element(By.XPATH, '//button[contains(text(), "Einloggen")]').click()
     time.sleep(2)
 
+def find_post_date(p):
+    date_elements = ['Min', 'Std', 'Tag', 'Woche', 'Monat', 'Jahr']
+    span_elems = p.find_all('span')
+    for e in span_elems:
+        if any(d in str(e) for d in date_elements):
+            date_str = get_visible_text(Comment, e)
+            if '•' in date_str:
+                date_str = date_str.split('•')[1].strip()
+            try:
+                post_date_dt, last_post = get_approx_date(datetime.now(), date_str)
+                break
+            except:
+                pass
+    return post_date_dt, last_post
+
+
 def scrapeProfile(company, link):
     p_name, follower, employees, last_post, desc1, desc2, tagline = ['' for _ in range(7)]
     driver.get(link)
@@ -60,7 +77,12 @@ def scrapeProfile(company, link):
         link = new_url.rsplit('/', 1)[0]
         driver.get(link)
         time.sleep(2)
-        new_url = driver.current_url
+    url_adds = ['posts/','about/','people/','?feedView=all', '?originalSubdomain=de']
+    for u in url_adds:
+        new_url = new_url.replace(u,'')
+    driver.get(new_url)
+    time.sleep(2)
+    new_url = driver.current_url
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = get_visible_text(Comment, soup)
     not_used = 'wurde noch nicht in Anspruch genommen'
@@ -96,8 +118,6 @@ def scrapeProfile(company, link):
                 if not follower_elem.isdigit():
                     follower_elem = str(' '.join(p_list[idx - 2: idx])).strip()
                 follower = extract_every_number(follower_elem)
-    driver.get(new_url + 'about/')
-    time.sleep(2)
     soup = BeautifulSoup(driver.page_source, 'lxml')
     info_elem = soup.find('div', class_='org-grid__content-height-enforcer')
     if not info_elem:
@@ -119,18 +139,16 @@ def scrapeProfile(company, link):
         last_post = 'Keine Beiträge'
         return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
 
-    last_date_elem = posts[0].find('div', class_='ml4 mt2 text-body-xsmall t-black--light')
-    if not last_date_elem:
-        last_date_elem = posts[0].find('div', class_='t-black--light t-14')
-    if not last_date_elem:
-        last_date_elem = posts[0].find('div', class_='update-components-text-view break-words')
-    if not last_date_elem:
-        last_date_elem = posts[0].find('div', class_='update-components-actor__meta relative')
-    if last_date_elem:
-        last_date_str = extract_text(last_date_elem)
-        if '•' in last_date_str:
-            last_date_str = last_date_str.split('•')[1].strip()
-        post_date_dt, last_post = get_approx_date(dt, last_date_str)
+    p = posts[0]
+    link_elems = [a for a in p.find_all('a', href=True)]
+    header_desc = [str(get_visible_text(Comment, a)).strip() for a in link_elems]
+    if len(header_desc) >= 1:
+        for h in header_desc:
+            if 'Follower' in str(h):
+                desc1 = str(h) + '; ' + desc1
+                break
+    post_date_dt, last_post = find_post_date(posts[0])
+
     return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
 ########################################################################################################################
 
@@ -151,12 +169,10 @@ if __name__ == '__main__':
     # LinkedIn might require you to enter a confirmation code at this point for security reasons.
 
     # Loop
-    count = 0
-    for id, row in df_source.iterrows():
-        count += 1
-        if count <= 0:   # If you want to skip some rows
+    for count, row in df_source.iterrows():
+        if count < 0:   # If you want to skip some rows
             continue
-
+        id = row['ID']
         company = extract_text(row[name_header])
         link = str(row[platform])
         if len(link) < 10:
@@ -168,7 +184,6 @@ if __name__ == '__main__':
         scraped_row = scrapeProfile(company, link)
         data.append([id, company, dt_str] + scraped_row)
         print([id, company, dt_str] + scraped_row)
-
 
     # Create a DataFrame
     header = ['ID', 'company', 'date', 'profile_name', 'follower', 'employees', 'last_post', 'url', 'tagline',
@@ -213,7 +228,7 @@ def check_conditions(id, p_name, row, lower_dt, start_at=0):
             print([id, url, 'no posts'])
             return False
 #    if not last_datestr or len(url) < 10 or len(last_posts) <= 4 or 'Keine Beiträge' in last_posts:
-    if (lower_dt + timedelta(days=31)) > last_post:
+    if (lower_dt - timedelta(days=31)) > last_post:
         return False
     try:
         driver.get(url + 'posts/?feedView=all')
@@ -224,33 +239,33 @@ def check_conditions(id, p_name, row, lower_dt, start_at=0):
 
 
 def scrape_post(p):
-    post_date_dt = datetime.now()
-    post_date = post_date_dt.strftime("%d.%m.%Y")
-    link_elems = [a for a in p.find_all('a',href=True)]
-    header_desc = [str(get_visible_text(Comment,a)).strip() for a in link_elems]
-    date_elements = ['Std', 'Tag', 'Woche', 'Monat', 'Jahr']
-    date_opt = [d for d in header_desc if any(e in d for e in date_elements)]
-    if len(date_opt) > 0:
-        date_str = date_opt[0]
-        if '•' in date_str:
-            date_str = date_str.split('•')[1].strip()
-        try:
-            post_date_dt, post_date = get_approx_date(post_date_dt, date_str)
-        except:
-            pass
-
+    post_date_dt, post_date = find_post_date(p)
     likes, comments, shares = ['' for _ in range(3)]
+    post_text = get_visible_text(Comment, p)
     react_elements = p.find_all('button', attrs={'aria-label': True})
     aria_labels = [a['aria-label'] for a in react_elements]
     for a in aria_labels:
-        ptext = str(extract_text(a))
-        num = extract_every_number(a)
+        ptext = extract_text(a)
+        if not ptext:
+            continue
+        num = extract_every_number(ptext.split()[0])
         if 'Reaktionen' in ptext and likes == '':
             likes = num
         elif ' Kommentar' in a and comments == '':
             comments = num
+            if str(comments)[-1] == '.':
+                comments = extract_number(comments)
         elif ' geteilt' in a or 'Veröffentlichungen' in a and shares == '':
             shares = num
+            if str(shares)[-1] == '.':
+                shares = extract_number(shares)
+    if 'Menü' in str(likes):
+        likes = ''
+    if not likes and '1 Gefällt' in post_text:
+        likes = 1
+    if not shares and 'direkt geteilter' in post_text:
+        shares = 1
+
     content_elem = p.find('span', class_='break-words')
     if content_elem:
         content = get_visible_text(Comment, content_elem)
@@ -276,7 +291,9 @@ if __name__ == '__main__':
     from crawler_functions import *
     import credentials_file as cred
     os.chdir(file_path)
-    file ='Profile_LinkedIn_2024'
+    file ='Profile_LinkedIn_2025-02-16'
+
+#    dt_str_now = None
     df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
     current_id = 0
 
@@ -289,26 +306,26 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
     login(cred.useremail_li, cred.password_li)
 
-    current_id = 0
+    old_id = 11
     # Iterate over the companies
     for n, row in df_source.iterrows():
         id = row['ID']
         url = str(row['url'])
         p_name = str(row['profile_name'])
-        go_crawl = check_conditions(n, p_name, row, lower_dt, start_at=current_id) # Start at the row 0
+        go_crawl = check_conditions(n, p_name, row, lower_dt, start_at=old_id) # Start at the row 0
         if not go_crawl:
             continue
-        current_id = id
+        old_id = id
 
         scroll_to_bottom()
         soup = BeautifulSoup(driver.page_source, 'lxml')
         posts = soup.find_all('div', class_='ember-view occludable-update')
-        if len(posts) == 0:
-            continue
-
+#        if len(posts) == 0:
+#            continue
         data_per_company = []
         id_p = 0
         for count, p in enumerate(posts):
+            extract_text(p)
             post_dt, postdata = scrape_post(p)
             print(postdata)
             if post_dt >= upper_dt:
