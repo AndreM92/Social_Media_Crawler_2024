@@ -116,7 +116,7 @@ def scrapeProfile(url, comp_keywords):
         else:
             total_posts = full_desc
     header = soup.find('section')
-    header_text = extract_text(header)
+    header_text = get_visible_text(Comment, header)
     if 'Gefolgt' in header_text and 'Beiträge' in header_text:
         desc = header_text.split('Gefolgt',1)[1].rsplit('Beiträge')[0].strip()
     else:
@@ -213,32 +213,25 @@ def clickOnFirst(startlink):
         return post_url
     return None
 
-def nextPost(startlink):
-    try:
-        driver.find_element(By.CSS_SELECTOR, 'svg[aria-label="Weiter"]').click()
+def nextPost(url, startlink,):
+    next_buttons = driver.find_elements(By.CSS_SELECTOR, 'svg[aria-label="Weiter"]')
+    if len(next_buttons) == 0:
+        next_buttons = driver.find_elements(By.CSS_SELECTOR, 'svg[aria-label="Next"]')
+        if len(next_buttons) == 0:
+            current_post = driver.current_url
+            pyautogui.moveTo(1869, 595)
+            pyautogui.click()
+            time.sleep(1)
+            if url == driver.current_url:
+                driver.get(current_post)
+                time.sleep(2)
+                pyautogui.moveTo(1865, 575)
+                pyautogui.click()
+    if len(next_buttons) >= 1:
+        next_buttons[0].click()
         time.sleep(2)
-    except:
-        pyautogui.moveTo(1865, 575)
-        pyautogui.click()
-        time.sleep(3)
-    if startlink == driver.current_url:
-        try:
-            driver.find_element(By.CSS_SELECTOR, 'svg[aria-label="Weiter"]').click()
-            time.sleep(2)
-        except:
-            pyautogui.moveTo(1865, 575)
-            pyautogui.click()
-            time.sleep(3)
-    if startlink == driver.current_url:
-        try:
-            driver.find_element(By.CSS_SELECTOR, 'svg[aria-label="Weiter"]').click()
-            time.sleep(2)
-        except:
-            pyautogui.moveTo(1865, 575)
-            pyautogui.click()
-            time.sleep(3)
     post_url = driver.current_url
-    if post_url == startlink or not 'instagram.com' in post_url:
+    if post_url == startlink or post_url == url or not 'instagram.com' in post_url:
         post_url == None
     return post_url
 
@@ -254,7 +247,7 @@ def comment_crawler(driver, post_text):
         soup_buttons = soup.find_all('div',class_='_abm0')
         button = False
         for pos, b in enumerate(soup_buttons):
-            if 'Weitere Kommentare laden' in str(b):
+            if 'Weitere Kommentare laden' in str(b) or 'Load more comments' in str(b):
                 button = pos
                 break
         if button:
@@ -284,7 +277,8 @@ def comment_crawler(driver, post_text):
 # Clicking with pyautogui led to many errors so I will scrape the correct higher comment counts later (with the post links)
 def get_commentnumber(old_comments = 0):
     pyautogui.moveTo(1475, 330)
-    pyautogui.scroll(-1500)
+    for _ in range(2):
+        pyautogui.scroll(-1500)
     pyautogui.moveTo(1385,755)
     time.sleep(1)
     soup = BeautifulSoup(driver.page_source,'lxml')
@@ -379,6 +373,9 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
     if comments > 0 and post_text != content:
         if len(str(content)) > 10:
             reactions_raw = post_text.split(content[-10:])[-1].split('Weitere Beiträge')[0]
+    # Not all comments are shown, so I have to estimate the real number:
+    if comments and 200 > comments > 14 :
+        comments = round(comments * 1.2)
 
     scraped_data = [post_date, likes, comments, image, video, calls, post_url, content,reactions_raw]
     return post_dt, scraped_data
@@ -399,7 +396,6 @@ def check_conditions(id, row,start_at=0):
             return False
     finally:
         return True
-
 
 def check_page(row):
     id = str(row['ID'])
@@ -445,10 +441,10 @@ if __name__ == '__main__':
     for count, row in df_source.iterrows():
         # Instagram will block your account after one hour of scraping
         # If needed, insert the browser close and restart function here (see below)
-        crawl = check_conditions(count,row,start_at=34)
+        crawl = check_conditions(count,row,start_at=0)
         if not crawl:
             continue
-        url = row['url']
+        url = extract_text(row['url'])
         id, post_url, p_name = check_page(row)
         if not post_url or not url:
             print(count, [id, p_name, '', dt_str, url])
@@ -465,11 +461,11 @@ if __name__ == '__main__':
                 if oor_posts > 2:
                     break
                 oor_posts += 1
-                post_url = nextPost(driver.current_url)
+                post_url = nextPost(url, driver.current_url)
                 continue
 
             if post_dt >= upper_dt:
-                post_url = nextPost(post_url)
+                post_url = nextPost(url, post_url)
                 if not post_url:
                     break
                 continue
@@ -478,7 +474,7 @@ if __name__ == '__main__':
             data_per_company.append(full_row)
             if p_num > 1000:
                 break
-            post_url = nextPost(driver.current_url)
+            post_url = nextPost(url, driver.current_url)
             if not post_url:
                 break
 
@@ -527,7 +523,7 @@ if __name__ == '__main__':
     from crawler_functions import *
     import credentials_file as cred
     os.chdir(file_path)
-    source_file = 'Beiträge_Instagram_2024-11-15.xlsx'
+    source_file = 'Beiträge_Instagram_2025_bis 31.xlsx'
     df_fillc = pd.read_excel(source_file)
 
     fill_data = []
@@ -574,8 +570,8 @@ if __name__ == '__main__':
                     soup = BeautifulSoup(driver.page_source,'html.parser')
                     likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
             corr += 1
-        if comments >= 20000:
-#        if ((not comments and not '0' in str(comments)) or str(comments) == 'nan' or str(comments) == '' or comments == 200): #or comments >= 200
+#        if comments >= 20000:
+        if ((not comments and not '0' in str(comments)) or str(comments) == 'nan' or str(comments) == '' or comments == 200): #or comments >= 200
             try:
                 driver.get(row['Link'])
                 WebDriverWait(driver, 7).until(
@@ -594,6 +590,7 @@ if __name__ == '__main__':
             post_text = get_visible_text(Comment, soup)
             comments = comment_crawler(driver, post_text)
             corr += 1
+            comments = round(comments * 1.3)
         fill_data.append([id, row['ID_A'], likes, comments])
 
 
@@ -601,3 +598,6 @@ if __name__ == '__main__':
     df_filled.to_excel('filled_Likes_comments.xlsx')
     print('Done')
     driver.quit()
+
+
+#currentMouseX, currentMouseY = pyautogui.position()
