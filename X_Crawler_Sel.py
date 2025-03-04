@@ -1,3 +1,4 @@
+
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -20,14 +21,19 @@ from datetime import datetime, timedelta
 import os
 # Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
-path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Scraper\Social_Media_Crawler_2023"
-file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
-source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
-branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
-                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
-startpage = 'https://twitter.com/i/flow/login'
+path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
+startpage = 'https://x.com/i/flow/login'
 platform = 'Twitter'
 dt_str_now = None
+upper_datelimit = '2025-02-01'
+
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Arzneimittelhersteller_2025"
+source_file = file_path + '\Auswahl_Arzneimittelhersteller 2025_2025-02-05.xlsx'
+branch_keywords = ['Pharma', 'Arznei', 'Medikament', 'Wirkstoff', 'Supplement', 'Forschung', 'Studie', 'Medizin', 'leistung', 'Krank', 'krank']
+#branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
+#                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
+#file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
+#source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
 ########################################################################################################################
 
 # Login function
@@ -108,9 +114,9 @@ def get_last_date():
 
 # A function to open the targetpage and scrape the profile stats
 def scrapeProfile(driver, url):
-    p_name, follower, following, joined = ['' for _ in range(4)]
+    p_name, follower, following, joined, shorter_desc = ['' for _ in range(5)]
     driver.get(url)
-    time.sleep(4)
+    time.sleep(3)
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = get_visible_text(Comment, soup)
     if len(pagetext) <= 1000 or 'not available' in pagetext:
@@ -119,26 +125,26 @@ def scrapeProfile(driver, url):
         pagetext = get_visible_text(Comment, soup)
     new_url = driver.current_url
     not_existent = 'This account doesn’t exist'
-    if len(pagetext) <= 1000 or not_existent in pagetext or not 'twitter.com' in new_url:
+    if len(pagetext) <= 1000 or not_existent in pagetext or (not 'twitter.com' in new_url and not 'x.com' in new_url):
         return [not_existent, follower, following, '', joined, new_url, pagetext]
-    full_desc_elem = soup.find('div', class_='css-1dbjc4n r-1ifxtd0 r-ymttw5 r-ttdzmv')
+    full_desc_elem = soup.find('div', class_='css-175oi2r r-3pj75a r-ttdzmv r-1ifxtd0')
     if not full_desc_elem:
-        full_desc_elem = soup.find('div',class_='css-175oi2r r-ymttw5 r-ttdzmv r-1ifxtd0')
-        full_desc = ' '.join([extract_text(e) for e in full_desc_elem]).replace('Following', 'Following ')
-    else:
-        full_desc = extract_text(full_desc_elem)
+        print('no description found')
+    full_desc = get_visible_text(Comment, full_desc_elem)
+#   full_desc_elem = soup.find('div', class_='css-1dbjc4n r-1ifxtd0 r-ymttw5 r-ttdzmv')
+#    full_desc_elem = soup.find('div', class_='css-175oi2r r-ymttw5 r-ttdzmv r-1ifxtd0')
     p_name = str(extract_text(soup.find('div', {'data-testid': 'UserName'})))
     if '@' in full_desc:
         if len(p_name) <= 4 or len(p_name) >= 30:
-            p_name, full_desc = full_desc.split('@', 1)[1].split(' ', 1)
+            p_name, shorter_desc = full_desc.split('@', 1)[1].split(' ', 1)
         else:
-            full_desc = full_desc.split('@', 1)[1].strip()
+            shorter_desc = full_desc.split('@', 1)[1].strip()
     if '@' in p_name:
-        p_name = p_name.split('@')[1]
+        p_name = p_name.split('@')[1].strip()
     if len(str(full_desc)) >= 30 and p_name in full_desc[:30]:
-        full_desc = full_desc.split(p_name,1)[1].strip()
-    if len(full_desc) >= 10:
-        dlist = full_desc.split()
+        shorter_desc = full_desc.split(p_name,1)[1].strip()
+    if len(shorter_desc) >= 10:
+        dlist = shorter_desc.split()
         for pos, e in enumerate(dlist):
             e = e.lower()
             if 'followers' in e and not 'followed' in e and follower == '':
@@ -150,6 +156,8 @@ def scrapeProfile(driver, url):
             elif 'joined' in e:
                 joined = ' '.join(dlist[(pos + 1):(pos + 3)])
     last_post, last_post_dt, posts = get_last_date()
+    full_desc = full_desc.replace('Follow Click to Follow ','').replace('Not followed by anyone you’re following',
+                                                                        '').replace('Translate bio ','').strip()
     datarow = [p_name, follower, following, joined, last_post, new_url, full_desc]
     return datarow
 ########################################################################################################################
@@ -162,22 +170,29 @@ if __name__ == '__main__':
     import credentials_file as cred
     os.chdir(file_path)
     df_source, col_list, comp_header, name_header, dt, dt_str = settings(source_file)
+    if 'X' in col_list:
+        platform = 'X'
+    elif 'Twitter' in col_list:
+        platform = 'Twitter'
+    else:
+        print('No platform found')
+        exit()
 
     # Start crawling
     data = []
-    driver = start_browser(webdriver, Service, chromedriver_path)
+    driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
     login(driver, startpage, cred.username_tw, cred.password_tw)
 
     # Iterating over the companies
-    count = 0  # If id's aren't ordered
     for id, row in df_source.iterrows():
-        count += 1
-        if count <= 0:  # If you want to skip some rows
+        if 'ID_new' in col_list:
+            id = row['ID']
+        if id < 0:
             continue
         company = extract_text(row[comp_header])
         comp_keywords = get_company_keywords(company, row, col_list)
-        url = str(row[network])
+        url = str(row[platform])
         if len(url) < 10:
             empty_row = [id, company, dt_str] + ['' for _ in range(7)]
             data.append(empty_row)
@@ -203,7 +218,6 @@ if __name__ == '__main__':
 ########################################################################################################################
 
 # Post crawler functions
-
 def inspect_page(row, lower_dt):
     id = str(row['ID'])
     url = str(row['url'])
@@ -367,7 +381,7 @@ def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
 def restart_browser(driver, webdriver, Service, chromedriver_path):
     driver.quit()
     time.sleep(3)
-    driver = start_browser(webdriver, Service, chromedriver_path)
+    driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
     login(driver, startpage, cred.username_tw, cred.password_tw)
     time.sleep(3)
@@ -394,21 +408,20 @@ if __name__ == '__main__':
     from crawler_functions import *
     import credentials_file as cred
     os.chdir(file_path)
-    file ='Profile_Twitter_2024'
-    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
+    file ='Profile_X_2025-03-04'
+    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
 
     # Driver and Browser setup
     all_data = []
-    driver = start_browser(webdriver, Service, chromedriver_path)
+    driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
     login(driver, startpage, cred.username_tw, cred.password_tw)
 
     # Iterate over the companies
     for count, row in df_source.iterrows():
-        skip = check_conditions(count, row, 2) # Start at the row 0
-        if skip:
+        skip = check_conditions(count, row, 0) # Start at the row 0
+        if skip or count < 0:
             continue
-        break
         # Restart the browser after 10 companies
 #        if count > 0 and count % 10 == 0:
 #            driver = restart_browser(driver, webdriver, Service, chromedriver_path)
@@ -420,13 +433,13 @@ if __name__ == '__main__':
         all_data += data_per_company
 
         # Create a DataFrame with all posts
-        header1 = ['ID_A', 'Profilname', 'ID_P', 'Erhebung', 'Datum']
+        header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
         header2 = ['Beitragsart', 'Likes', 'Kommentare', 'Retweets', 'Aufrufe', 'Bild', 'Video', 'Link', 'Content']
         dfPosts = pd.DataFrame(all_data,columns=header1+header2)
 
         # Export dfPosts to Excel (with the current time)
         dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-        file_name = 'Beiträge_Twitter_' + dt_str_now + '.xlsx'
+        file_name = 'Beiträge_X_' + dt_str_now + '.xlsx'
         dfPosts.to_excel(file_name)
 
     driver.quit()
