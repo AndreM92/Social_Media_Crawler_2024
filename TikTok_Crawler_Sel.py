@@ -1,3 +1,4 @@
+
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -5,7 +6,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 import selenium.webdriver.support.expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 
-import pyautogui
+#import pyautogui
 
 import requests
 from bs4 import BeautifulSoup
@@ -26,9 +27,9 @@ startpage = 'https://www.tiktok.com/'
 platform = 'TikTok'
 dt_str_now = None
 
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024"
-source_file = r"C:\Users\andre\OneDrive\Desktop\SMP_Brauereien_2024\Brauereien_Auswahl_2024-06-16.xlsx"
-branch_keywords = ['Brauerei', 'Brauhaus', 'Bräu', 'braeu', 'Bier', 'brewing']
+upper_datelimit = '2025-02-01'
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Arzneimittelhersteller_2025"
+source_file = file_path + '\Auswahl_Arzneimittelhersteller 2025_2025-02-05.xlsx'
 #branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
 #                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 #file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
@@ -58,6 +59,8 @@ def scrapeProfile(url):
         if len(stat_elems) >= 1:
             for e in stat_elems[0]:
                 i = extract_text(e)
+                if not str(i)[0].isdigit():
+                    continue
                 if 'Like' in i:
                     pagelikes = extract_every_number(i.split('Like')[0].strip())
                 elif 'Follower' in i:
@@ -72,6 +75,8 @@ def scrapeProfile(url):
         userlink = userlink['href']
     if 'keine Videos veröffentlicht' in pagetext:
         return [p_name, pagelikes, follower, following, last_post, url, userlink, desc]
+    if 'Profil enthält Themen' in pagetext:
+        return [p_name, 'login required', follower, following, last_post, url, userlink, desc]
     links = [l['href'] for l in soup.find_all('a',href=True)]
     videolinks = list(set([l for l in links if 'video' in str(l)]))
     if len(videolinks) == 0:
@@ -101,6 +106,7 @@ if __name__ == '__main__':
     import credentials_file as cred
     os.chdir(file_path)
     df_source, col_list, comp_header, name_header, dt, dt_str = settings(source_file)
+    col_names = list(df_source.columns)
 
     # Start crawling
     data = []
@@ -111,9 +117,12 @@ if __name__ == '__main__':
     count = 0  # If id's aren't ordered
     for id, row in df_source.iterrows():
         count += 1
-        if count <= 0:  # If you want to skip some rows
+        if count <= 74:  # If you want to skip some rows
             continue
+
         company = extract_text(row[comp_header])
+        if len(company) <= 4 and 'Name in Studie' in col_names:
+            company = extract_text(row['Name in Studie'])
         comp_keywords = get_company_keywords(company, row, col_list)
         url = str(row[platform])
         if len(url) < 10:
@@ -137,8 +146,10 @@ if __name__ == '__main__':
     dt_str_now = datetime.now().strftime("%Y-%m-%d")
     recent_filename = 'Profile_' + platform + '_' + dt_str_now + '.xlsx'
     df_profiles.to_excel(recent_filename)
-########################################################################################################################
 
+    driver.quit()
+
+########################################################################################################################
 # Post Crawler functions
 def check_conditions(id, p_name, url, row, lower_dt, start_at=0):
     if id < start_at:      # If you want to skip some rows
@@ -155,7 +166,7 @@ def check_conditions(id, p_name, url, row, lower_dt, start_at=0):
         if (last_dt + timedelta(days=31)) < lower_dt:
             return False
         driver.get(url)
-        time.sleep(3)
+        time.sleep(5)
         soup = BeautifulSoup(driver.page_source, 'lxml')
         pagetext = get_visible_text(Comment, soup)
         if 'Puzzleteil' in pagetext or 'Verifiziere' in pagetext:
@@ -179,8 +190,10 @@ def get_videolinks(driver):
             time.sleep(1)
         end_height = driver.execute_script("return document.body.scrollHeight")
         if start_height == end_height:
+            driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
             break
         safety_counter += 1
+    time.sleep(1)
     soup = BeautifulSoup(driver.page_source, 'lxml')
     video_containers = soup.find_all('div',{'data-e2e':'user-post-item'})
     if not video_containers:
@@ -212,9 +225,10 @@ def scrape_post(count, p_name, video_info):
         return None, None
     if count == 0:
         go_to_page(driver, link)
+        time.sleep(3)
     else:
         driver.get(link)
-        time.sleep(2)
+        time.sleep(3)
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = get_visible_text(Comment, soup)
     if len(pagetext) <= 100 or 'Puzzleteil' in pagetext or 'Verifiziere' in pagetext or 'Schieberegler' in pagetext:
@@ -233,7 +247,7 @@ def scrape_post(count, p_name, video_info):
             date_str = pagetext.split(p_name,1)[1][:50].split('Folgen')[0].strip()
 #    if len(date_str) <= 4:
 #        return None, None
-    if (not p_name[:3].lower() in date_str.lower() and not p_name[-3:].lower() in date_str.lower()) or \
+    if (not p_name[:3].lower() in date_str.lower() and not p_name[-3:].lower() in date_str.lower()) and \
             (not p_name[:3].lower() in link.lower() and not p_name[-3:].lower() in link.lower()):
         return None, None
     if '·' in date_str:
@@ -254,12 +268,18 @@ def scrape_post(count, p_name, video_info):
             shares = number
         elif 'undefined-count' in line:
             dms = number
-    content_desc = extract_text(soup.find('h1', {'data-e2e': 'browse-video-desc'}))
-    content_music = extract_text(soup.find('h4', {'data-e2e': 'browse-music'}))
-    content = content_desc + ' ' + content_music
-    if len(content) <= 10:
-        content = get_visible_text(Comment, soup.find('div', class_='css-r4nwrj-DivVideoInfoContainer eqrezik3'))
-        content = content.replace('mehr ','').strip()
+    content = extract_text(soup.find('div', {'data-e2e': 'browse-video-desc'}))
+    if not content or len(str(content)) <= 4:
+        content = extract_text(soup.find('h1', {'data-e2e': 'browse-video-desc'}))
+    if not content or len(str(content)) <= 4:
+        content = extract_text(soup.find('span', class_='tiktok-j2a19r-SpanText efbd9f0'))
+    if not content or len(str(content)) <= 4:
+        content = extract_text(soup.find('span', class_='css-j2a19r-SpanText efbd9f0'))
+    if len(str(content)) <= 4:
+        print('Kein Content gefunden')
+        content = pagetext.split('mehr ')[-1]
+        if 'Anmelden' in content:
+            content = content.split('Anmelden ')[0].strip()
     return date_dt, [date_str, likes, comments, shares, dms, views, link, content]
 ########################################################################################################################
 
@@ -270,8 +290,8 @@ if __name__ == '__main__':
     from crawler_functions import *
     import credentials_file as cred
     os.chdir(file_path)
-    file ='Profile_' + platform + '_2024'
-    df_source, dt, crawl_datestr, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now)
+    file ='Profile_' + platform + '_2025'
+    df_source, dt, crawl_datestr, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
 
     # Driver and Browser setup
     all_data = []
@@ -279,15 +299,15 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
 
     # Iterate over the companies
-    for n, row in df_source.iterrows():
-        id = str(row['ID'])
+    for id, row in df_source.iterrows():
+        if 'ID_new' in col_list:
+            id = row['ID_new']
         url = str(row['url'])
         p_name = str(row['profile_name'])
-        go_crawl = check_conditions(n, p_name, url, row, lower_dt, start_at=13)
+        go_crawl = check_conditions(n, p_name, url, row, lower_dt, start_at=0)
         if not go_crawl:
             continue
-        if 'bsn' in p_name.lower():
-            break
+
         video_info_list = get_videolinks(driver)
         if not video_info_list or len(video_info_list) == 0:
             input('Press ENTER after solving website issues')
@@ -296,9 +316,9 @@ if __name__ == '__main__':
             continue
         data_per_company = []
         id_p = 0
-#        error_index = video_info_list.index(video_info)
 #        for count, video_info in enumerate(video_info_list[error_index:]):
         for count, video_info in enumerate(video_info_list):
+            error_index = video_info_list.index(video_info)
             date_dt, scraped_postdata = scrape_post(count, p_name, video_info)
             print(scraped_postdata)
             if not date_dt:
@@ -321,7 +341,7 @@ if __name__ == '__main__':
 
         # Export dfPosts to Excel (with the current time)
         dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-        file_name = 'Beiträge_' + platform + dt_str_now + '.xlsx'
+        file_name = 'Beiträge_' + platform + '_' + dt_str_now + '.xlsx'
         dfPosts.to_excel(file_name)
 
     driver.quit()
