@@ -224,7 +224,7 @@ def inspect_profile(row, lower_dt):
             last_dt = datetime.strptime(last_post, '%d.%m.%Y')
         except:
             return None
-    if (lower_dt + timedelta(days=31)) > last_dt:
+    if (lower_dt - timedelta(days=31)) > last_dt:
         return None
     driver.get(link)
     time.sleep(3)
@@ -407,7 +407,7 @@ if __name__ == '__main__':
     for count, row in df_source.iterrows():
         id = row['ID']
         p_name = extract_text(row['profile_name'])
-        if id <= 82:
+        if id <= 103:
             continue
         last_dt = inspect_profile(row, lower_dt)
         if not last_dt:
@@ -416,8 +416,10 @@ if __name__ == '__main__':
         data_per_company = []
         distinct_content = []
         count_p = 0
+        no_p = 0
         days_delta = (last_dt - lower_dt).days
-        scrolls = round(days_delta / 4)
+        scrolls = round(days_delta / 2)
+
         for _ in range(scrolls):
             len_post_list = len(data_per_company)
             soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -437,11 +439,15 @@ if __name__ == '__main__':
                     print(full_row)
                     data_per_company.append(full_row)
                     distinct_content = distinct_content_new
-            if len_post_list == len(data_per_company):
+            if len_post_list == len(data_per_company) and no_p >=3:
                 print('No more new posts')
                 break
-            driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
-            wait_time = round(((len_post_list)*0.025)**0.5) + 1
+            if len_post_list == len(data_per_company):
+                no_p += 1
+            else:
+                no_p = 0
+            driver.execute_script("window.scrollBy(0, 1800);")
+            wait_time = round(((len_post_list)*0.025)**0.5)
             time.sleep(wait_time)
 
         ##### Safe #####
