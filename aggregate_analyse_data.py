@@ -9,6 +9,13 @@ from langdetect import detect
 from crawler_functions import lang_interpreter
 
 import locale
+
+study = 'Arzneimittelhersteller'
+# Specific keywords
+branch_eng = ['vitamins', 'nutrients', 'nutritional', 'mineralization', 'products', 'Athletes', 'Healthy']
+# branch_eng = ['insurance', 'finance', 'safety', 'protect']
+branch_ger = ['Pharma', 'Arznei', 'Medikament', 'Wirkstoff', 'Supplement', 'Forschung', 'Studie', 'Medizin', 'leistung',
+              'Krank', 'krank']
 ########################################################################################################################
 
 def get_tables(platform):
@@ -30,9 +37,6 @@ def get_tables(platform):
 
 
 def format_language(profile_desc, post_content):
-    # Specific keywords
-    branch_eng = ['vitamins', 'nutrients', 'nutritional', 'mineralization', 'products', 'Athletes', 'Healthy']
-    branch_ger = [' Vitamine ', 'Ernährung ', 'Nährstoff', 'Sport', 'Leistung', 'Gesundheit', 'Bestform', 'Motivation']
     profile_desc = profile_desc.split('Link')[0]
     sc = profile_desc.split('·')[0]
     if len(sc) >= 50:
@@ -112,7 +116,7 @@ def get_words_and_hashtags(content_list, platform = None):
 
 if __name__ == '__main__':
     working_path = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
-    file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
+    file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_" + study + "_2025"
     os.chdir(file_path)
     platforms = ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'X', 'YouTube']
     # I set my locale to German
@@ -125,15 +129,15 @@ if __name__ == '__main__':
 
     for platform in platforms:
         df_selection, df_profiles, df_posts = get_tables(platform)
-        df_profiles.rename(columns={'ID': 'ID_A', 'company': 'Name in Studie', 'profile_name': 'Profilname', }, inplace=True)
-
-        # Create a DF with the selected Profiles
-        df_sel_profiles = df_selection[['ID_new', 'ID_A', 'Firma/Marke']].merge(df_profiles, on='ID_A', how='left')
-        columns_to_remove = ['Unnamed', 'Number', 'date', 'employees']  #last_post?
-        for c in df_sel_profiles.columns:
+        df_profiles.rename(columns={'ID': 'ID_A', 'profile_name': 'Profilname', }, inplace=True)
+        columns_to_remove = ['Firma', 'company', 'Name in Studie', 'Unnamed', 'Number', 'date','employees']  # last_post?
+        for c in df_profiles.columns:
             for cn in columns_to_remove:
                 if cn in c:
-                    df_sel_profiles.drop(columns=c, inplace=True)
+                    df_profiles.drop(columns=c, inplace=True)
+
+        # Create a DF with the selected Profiles
+        df_sel_profiles = df_selection[['ID_new', 'ID_A','Firma', 'Name in Studie']].merge(df_profiles, on='ID_A', how='left')
         desc, d1, d2, tl = 'description', 'description1', 'description2', 'tagline'
         if d1 in df_sel_profiles.columns and d2 in df_sel_profiles.columns:
             df_sel_profiles[desc] = (df_sel_profiles[d1].fillna('') + ' ' +
@@ -225,7 +229,7 @@ if __name__ == '__main__':
         if platform == 'YouTube' or platform == 'TikTok':
             df_agg['Anteil Videos'] = 100
 
-        # Merge the tables and create a DF that contains all the data of the profiles and their ativity
+        # Merge the tables and create a DF that contains all the data of the profiles and their activity
         df_profiles_summary = df_sel_profiles.merge(df_agg, on='ID_new', how='left')
         df_profiles_summary['Network'] = platform
         df_profiles_summary.rename(columns={'url': 'Link'}, inplace=True)
@@ -233,7 +237,7 @@ if __name__ == '__main__':
                                                            (df_profiles_summary['Anzahl Interaktionen'] /
                         (df_profiles_summary['Fans'] * df_profiles_summary['Anzahl Posts']) * 1000).round(5), np.nan)
         df_profiles_summary['Interaktionsrate'].fillna('-', inplace=True)
-        col_order_overview = ['ID_new', 'ID_A', 'Firma/Marke', 'Name in Studie', 'Network', 'Profilname', 'Sprache',
+        col_order_overview = ['ID_new', 'ID_A', 'Firma', 'Name in Studie', 'Network', 'Profilname', 'Sprache',
                               'Fans', 'Anzahl Posts', 'Retweet Posts', 'Anzahl Likes', 'Anzahl Kommentare',
                               'Anzahl Shares', 'Anzahl Interaktionen', 'Anzahl Aufrufe', 'Interaktionsrate',
                               'Interaktionen pro Post', 'Likes pro Post', 'Kommentare pro Post', 'Aufrufe pro Post',
@@ -244,7 +248,7 @@ if __name__ == '__main__':
                 df_profiles_summary[e] = '-'
         df_profiles_summary = df_profiles_summary[col_order_overview]
 
-        # Add zeros to the profile count if they havent posted anything
+        # Add zeros to the profile count if they haven't posted anything
         linklist = list(df_profiles_summary['Link'])
         post_numbers = list(df_profiles_summary['Anzahl Posts'])
         for id, l in enumerate(linklist):
@@ -284,9 +288,9 @@ if __name__ == '__main__':
         df_ranking_s['Index_F'] = (df_ranking_s['Fans'] / df_ranking_s['Fans'].mean() * 100).round(2)
         df_ranking_s['Index_P'] = (df_ranking_s['Posts'] / df_ranking_s['Posts'].mean() * 100).round(2)
         df_ranking_s['Index_I'] = (df_ranking_s['Interaktionen'] / df_ranking_s['Interaktionen'].mean() * 100).round(2)
-        df_ranking_s['Rang_F'] = df_ranking_s['Fans'].rank(ascending=False, na_option='bottom', method='dense')
-        df_ranking_s['Rang_P'] = df_ranking_s['Posts'].rank(ascending=False, na_option='bottom', method='dense')
-        df_ranking_s['Rang_I'] = df_ranking_s['Interaktionen'].rank(ascending=False, na_option='bottom', method='dense')
+        df_ranking_s['Rang_F'] = df_ranking_s['Fans'].rank(ascending=False, na_option='bottom', method='min')
+        df_ranking_s['Rang_P'] = df_ranking_s['Posts'].rank(ascending=False, na_option='bottom', method='min')
+        df_ranking_s['Rang_I'] = df_ranking_s['Interaktionen'].rank(ascending=False, na_option='bottom', method='min')
         df_ranking_s['Index'] = df_ranking_s[['Index_F', 'Index_P', 'Index_I']].sum(axis=1)
         df_ranking_s['Rang'] = df_ranking_s['Index'].rank(ascending=False, na_option='bottom', method='dense')
         col_order_ranking_s = ['Rang', 'ID_new', 'Anbieter', 'Fans', 'Index_F', 'Rang_F', 'Posts',
@@ -303,6 +307,7 @@ if __name__ == '__main__':
 
     ########################################################################################################################
     # Concat/ Merge the full tables
+
 
     # Complete profile data
     table_profiles = dict_summary[platforms[0]]
@@ -398,6 +403,7 @@ if __name__ == '__main__':
     # Append the ranking tables to ordered_dict_profiles
     ordered_dict_profiles.update({'Gesamtranking': table_ranking})
     ordered_dict_profiles.update((p, df) for p, df in dict_ranking.items())
+    print('Ranking Done')
 
     ########################################################################################################################
     # Top 100-Posts Frequencies, Words and Hashtags
@@ -408,7 +414,7 @@ if __name__ == '__main__':
     dict_frequencies = {}
     dict_w_h = {}
     for platform, df in dict_posts.items():
-        rank_by = ['Likes', 'Kommentaren', 'Interaktionsrate']
+        rank_by = ['Likes', 'Kommentare', 'Interaktionsrate']
         for _by in rank_by:
             df_frequencies = freq_in_posts(_by, platform, df)
             if _by == rank_by[0]:
@@ -428,8 +434,8 @@ if __name__ == '__main__':
     # Export to excel
     os.chdir(file_path)
     date_str = datetime.now().strftime("%Y%m%d")
-    name_profiles = 'Kanäle_Supplements ' + date_str + '.xlsx'
-    name_posts = 'Beiträge_Supplements ' + date_str + '.xlsx'
+    name_profiles = 'Kanäle_' + study + date_str + '.xlsx'
+    name_posts = 'Beiträge_' + study + date_str + '.xlsx'
 
     with pd.ExcelWriter(name_profiles, engine='xlsxwriter') as writer:
         for title, df in ordered_dict_profiles.items():
@@ -437,3 +443,4 @@ if __name__ == '__main__':
     with pd.ExcelWriter(name_posts, engine='xlsxwriter') as writer:
         for title, df in ordered_dict_posts.items():
             df.to_excel(writer, sheet_name=title)
+    print('finished')
