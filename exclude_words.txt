@@ -25,6 +25,7 @@ original
 sound
 Studio
 Tag
+Audio
 Info
 Infos
 Kommentar
@@ -32,6 +33,9 @@ Kommentare
 Kommentieren
 kommentieren
 Kommentaren
+Folgen
+Antworten
+Posten
 Hashtag
 Likes
 Like
@@ -67,7 +71,7 @@ Str
 schm
 weiter
 vielen
-zeigenn
+zeigen
 gegen
 jede
 anderen
