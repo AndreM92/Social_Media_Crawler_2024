@@ -29,11 +29,11 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 dt_str_now = None
-upper_datelimit = '2025-02-01'
+upper_datelimit = '2025-04-01'
 
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Arzneimittelhersteller_2025"
-source_file = file_path + '\Auswahl_Arzneimittelhersteller 2025_2025-02-05.xlsx'
-branch_keywords = ['Pharma', 'Arznei', 'Medikament', 'Wirkstoff', 'Supplement', 'Forschung', 'Studie', 'Medizin', 'leistung', 'Krank', 'krank']
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Banken_2025"
+source_file = file_path + '\Auswahl_SMP Banken 2025_2025-04-01.xlsx'
+branch_keywords = ['Bank', 'Finanz', 'Anlage', 'Anleg', 'Kurs', 'Aktie', 'Institut', 'Geld', 'Vermögen', 'Spar', 'dienstleist']
 ########################################################################################################################
 
 def remove_insta_cookies():
@@ -77,7 +77,7 @@ def scrapeProfile(url, comp_keywords):
     new_url = driver.current_url
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = str(get_visible_text(Comment, soup))
-    broken_profile = ['nicht verfügbar', 'Eingeschränktes Profil', 'Konto ist privat', 'Seite wurde entfernt']
+    broken_profile = ['nicht verfügbar', 'Eingeschränktes Profil', 'Konto ist privat', 'Seite wurde entfernt', "isn't available"]
     for m in broken_profile:
         if m in pagetext:
             p_name = m
@@ -161,10 +161,10 @@ if __name__ == '__main__':
     # Iterating over the companies
     count = 0  # If id's aren't ordered
     for id, row in df_source.iterrows():
+        id +=1
         count += 1
         if count <= 0:  # If you want to skip some rows
             continue
-
         company = extract_text(row[comp_header])
         comp_keywords = get_company_keywords(company, row, col_list)
         url = str(row[platform])
@@ -176,7 +176,7 @@ if __name__ == '__main__':
         scraped_data = scrapeProfile(url, comp_keywords)
         full_row = [id, company, dt_str] + scraped_data
         data.append(full_row)
-        print(count,full_row[:-1])
+        print(count,full_row)
 
 
     # DataFrame
@@ -185,8 +185,8 @@ if __name__ == '__main__':
     df_profiles.set_index('ID')
 
     # Export to Excel
-#    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-    dt_str_now = datetime.now().strftime("%Y-%m-%d")
+    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+#    dt_str_now = datetime.now().strftime("%Y-%m-%d")
     recent_filename = 'Profile_' + platform + '_' + dt_str_now + '.xlsx'
     df_profiles.to_excel(recent_filename)
 
@@ -320,9 +320,14 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
             inner_content = content_elem.find('div',class_='xt0psk2')
             if inner_content:
                 content_elem = inner_content
-    content = get_visible_text(Comment, content_elem)
+    if not content_elem:
+        content_elem = soup.find('div', class_='x4h1yfo')
+    if content_elem:
+        content = get_visible_text(Comment, content_elem)
+        if len(content) >= 100 and 'Wo.' in content:
+            content = content.split('Wo.',1)[1].strip()
     if len(str(content)) <= 4:
-        if len(post_text) >= 1200:
+        if len(post_text) >= 1000:
             content = post_text
     if soup.find('video'):
         video, image = 1,0
@@ -441,7 +446,7 @@ if __name__ == '__main__':
     for count, row in df_source.iterrows():
         # Instagram will block your account after one hour of scraping
         # If needed, insert the browser close and restart function here (see below)
-        crawl = check_conditions(count,row,start_at=0)
+        crawl = check_conditions(count,row,start_at=11)
         if not crawl:
             continue
         url = extract_text(row['url'])
@@ -454,6 +459,7 @@ if __name__ == '__main__':
         oor_posts = 0
         p_num = 0
         first_post = True
+        last_post_url = ''
         while True:
             post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
             if not post_dt:
@@ -475,8 +481,9 @@ if __name__ == '__main__':
             if p_num > 1000:
                 break
             post_url = nextPost(url, driver.current_url)
-            if not post_url:
+            if not post_url or url in post_url or post_url == last_post_url:
                 break
+            last_post_url = post_url
 
         all_data += data_per_company
 
