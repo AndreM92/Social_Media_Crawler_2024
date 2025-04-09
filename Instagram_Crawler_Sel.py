@@ -196,20 +196,28 @@ if __name__ == '__main__':
 # post_crawler functions
 def clickOnFirst(startlink):
     posts = driver.find_elements(By.CLASS_NAME, '_aagw')
-    if len(posts) >= 1:
+    try:
+        posts[0].click()
+        time.sleep(3)
+    except:
+        pass
+    if not '/p/' in driver.current_url:
+        driver.get(startlink)
+        time.sleep(2)
+        posts = driver.find_elements(By.CLASS_NAME, '_aagw')
         try:
             posts[0].click()
             time.sleep(3)
-            post_url = driver.current_url
-            if post_url != startlink and 'instagram.com' in str(post_url):
-                return post_url
         except:
             pass
+    post_url = driver.current_url
+    if post_url != startlink and 'instagram.com' in str(post_url) and '/p/' in str(post_url):
+        return post_url
     pyautogui.moveTo(690, 980)
     pyautogui.click()
     time.sleep(3)
     post_url = driver.current_url
-    if post_url != startlink and 'instagram.com' in post_url:
+    if post_url != startlink and 'instagram.com' in post_url and '/p/' in str(post_url):
         return post_url
     return None
 
@@ -318,14 +326,17 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
         content_elem = soup.find('article')
         if content_elem:
             inner_content = content_elem.find('div',class_='xt0psk2')
-            if inner_content:
-                content_elem = inner_content
+            content = get_visible_text(Comment, inner_content)
+            if content_elem and len(content) <= 50:
+                content = get_visible_text(Comment, content_elem)
     if not content_elem:
         content_elem = soup.find('div', class_='x4h1yfo')
-    if content_elem:
         content = get_visible_text(Comment, content_elem)
-        if len(content) >= 100 and 'Wo.' in content:
+    if len(str(content)) >= 100:
+        if 'Wo.' in str(content)[:100]:
             content = content.split('Wo.',1)[1].strip()
+        if 'gefällt' in str(content)[:100]:
+            content = content.split('gefällt',1)[1].strip()
     if len(str(content)) <= 4:
         if len(post_text) >= 1000:
             content = post_text
@@ -446,7 +457,7 @@ if __name__ == '__main__':
     for count, row in df_source.iterrows():
         # Instagram will block your account after one hour of scraping
         # If needed, insert the browser close and restart function here (see below)
-        crawl = check_conditions(count,row,start_at=11)
+        crawl = check_conditions(count,row,start_at=29)
         if not crawl:
             continue
         url = extract_text(row['url'])
@@ -462,6 +473,7 @@ if __name__ == '__main__':
         last_post_url = ''
         while True:
             post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
+            print(scraped_data)
             if not post_dt:
                 # Pinned posts can be out of the date range
                 if oor_posts > 2:
