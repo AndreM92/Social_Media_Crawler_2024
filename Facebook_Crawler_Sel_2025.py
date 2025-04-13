@@ -24,11 +24,11 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.facebook.com/'
 platform = 'Facebook'
 dt_str_now = None
-upper_datelimit = '2025-02-01'
+upper_datelimit = '2025-04-01'
 
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Arzneimittelhersteller_2025"
-source_file = file_path + '\Auswahl_Arzneimittelhersteller 2025_2025-02-05.xlsx'
-branch_keywords = ['Pharma', 'Arznei', 'Medikament', 'Wirkstoff', 'Supplement', 'Forschung', 'Studie', 'Medizin', 'leistung', 'Krank', 'krank']
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Banken_2025"
+source_file = file_path + '\Auswahl_SMP Banken 2025_2025-03-26.xlsx'
+branch_keywords = ['Bank', 'Finanz', 'Anlage', 'Anleg', 'Kurs', 'Aktie', 'Institut', 'Geld', 'Vermögen', 'Spar', 'dienstleist']
 ########################################################################################################################
 
 # Facebook Login function
@@ -109,7 +109,7 @@ def date_hint(scr_text):
             if key[:4] in scr_text:
                 month = value
                 month = str(month).zfill(2)
-    years = ['2024','2023','2022','2021','2020','2019','2018','2017']
+    years = ['2025','2024','2023','2022','2021','2020','2019','2018','2017']
     for y in years:
         if y in scr_text:
             year = y
@@ -123,7 +123,7 @@ def date_hint(scr_text):
 
 
 def scrapeProfile(url):
-    p_name, pagelikes, follower, last_post = ['' for _ in range(4)]
+    p_name, pagelikes, follower, last_post, raw_desc = ['' for _ in range(5)]
     driver.get(url)
     time.sleep(2)
     soup = BeautifulSoup(driver.page_source, 'lxml')
@@ -143,9 +143,12 @@ def scrapeProfile(url):
     time.sleep(1)
     scr_text = get_text_from_screenshot(driver, p_name)
     last_post = date_hint(scr_text)
-
-    raw_desc_elem = driver.find_element(By.CLASS_NAME, 'x1yztbdb')
-    raw_desc = get_visibile_text(comment, raw_desc_elem)
+    raw_desc_elem = soup.find('div',class_='x1yztbdb')
+    if raw_desc_elem:
+        raw_desc = get_visible_text(Comment, raw_desc_elem)
+    if not raw_desc_elem or len(str(raw_desc)) <= 4:
+        raw_desc_elem = driver.find_element(By.CLASS_NAME, 'x1yztbdb')
+        raw_desc = extract_text(raw_desc_elem)
     description = raw_desc.replace('Steckbrief ', '').replace('Intro', '').strip()
     stats_elem = soup.find('div',class_='x9f619 x1n2onr6 x1ja2u2z x78zum5 xdt5ytf x2lah0s x193iq5w x1cy8zhl xyamay9')
     stats_text = extract_text(stats_elem)
@@ -156,7 +159,6 @@ def scrapeProfile(url):
                 pagelikes = extract_every_number(e)
             elif 'follower' in e.lower():
                 follower = extract_every_number(e)
-
     if len(description) <= 5:
         description = extract_text(pagetext)
     new_url = driver.current_url
@@ -170,6 +172,7 @@ if __name__ == '__main__':
     import credentials_file as cred
     os.chdir(file_path)
     df_source, col_list, comp_header, name_header, dt, dt_str = settings(source_file)
+    col_list = list(df_source.columns)
 
     # Open the browser, go to the startpage and login
     data = []
@@ -221,7 +224,7 @@ def inspect_profile(row, lower_dt):
         return None
     if not isinstance(last_dt,datetime):
         try:
-            last_dt = datetime.strptime(last_post, '%d.%m.%Y')
+            last_dt = datetime.strptime(last_dt, '%d.%m.%Y')
         except:
             return None
     if (lower_dt - timedelta(days=31)) > last_dt:
@@ -237,7 +240,6 @@ def inspect_profile(row, lower_dt):
         return None
     return last_dt
 
-#rawtext = get_visible_text(Comment,posts[0])
 def scrape_reel(rawtext, p):
     post_date, likes, comments, shares, link = ['' for _ in range(5)]
     p_text = rawtext.replace('Facebook', '').strip()
@@ -407,7 +409,7 @@ if __name__ == '__main__':
     for count, row in df_source.iterrows():
         id = row['ID']
         p_name = extract_text(row['profile_name'])
-        if id <= 103:
+        if id <= 0:                                     #If you want to skip some rows
             continue
         last_dt = inspect_profile(row, lower_dt)
         if not last_dt:
@@ -439,7 +441,7 @@ if __name__ == '__main__':
                     print(full_row)
                     data_per_company.append(full_row)
                     distinct_content = distinct_content_new
-            if len_post_list == len(data_per_company) and no_p >=3:
+            if len_post_list == len(data_per_company) and no_p >= 3:
                 print('No more new posts')
                 break
             if len_post_list == len(data_per_company):
