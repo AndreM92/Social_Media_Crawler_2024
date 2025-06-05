@@ -25,11 +25,12 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://x.com/i/flow/login'
 platform = 'Twitter'
 dt_str_now = None
-upper_datelimit = '2025-02-01'
+upper_datelimit = '2025-05-01'
 
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Arzneimittelhersteller_2025"
-source_file = file_path + '\Auswahl_Arzneimittelhersteller 2025_2025-02-05.xlsx'
-branch_keywords = ['Pharma', 'Arznei', 'Medikament', 'Wirkstoff', 'Supplement', 'Forschung', 'Studie', 'Medizin', 'leistung', 'Krank', 'krank']
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Banken_2025"
+source_file = file_path + '\Auswahl_SMP Banken 2025_2025-04-01.xlsx'
+branch_keywords = ['Bank', 'Finanz', 'Anlage', 'Anleg', 'Kurs', 'Aktie', 'Institut', 'Geld', 'Vermögen', 'Spar',
+                   'dienstleist']
 #branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
 #                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 #file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
@@ -186,7 +187,9 @@ if __name__ == '__main__':
 
     # Iterating over the companies
     for id, row in df_source.iterrows():
-        if 'ID_new' in col_list:
+        if 'ID_new' in df_source.columns:
+            id = row['ID_new']
+        elif 'ID' in df_source.columns:
             id = row['ID']
         if id < 0:
             continue
@@ -326,7 +329,7 @@ def scroller(scrolls, height2):
     height2 = driver.execute_script("return document.documentElement.scrollHeight")
     driver.execute_script("window.scrollBy(0,2000)", "")
     scrolls += 1
-    time.sleep(3)
+    time.sleep(1)
     if scrolls >= 50:
         time.sleep(1)
     if scrolls >= 150:
@@ -345,6 +348,7 @@ def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
     id_ad = 0
     scrolls = 0
     height2 = False
+    pinned_comments = 0
     while crawl:
         soup = BeautifulSoup(driver.page_source, 'lxml')
         posts = soup.find_all('article')
@@ -353,8 +357,10 @@ def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
         for p in posts:
             post_data, date_dt = post_scraper(p, p_name, lower_dt)
             if date_dt and date_dt < lower_dt:
-                crawl = False
-                break
+                if pinned_comments >= 3:
+                    crawl = False
+                    break
+                pinned_comments += 1
             if not post_data or not date_dt or date_dt >= upper_dt:
                 continue
             link = post_data[-2]
@@ -366,7 +372,7 @@ def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
             else:
                 full_row = [id, p_name, id_p, dt_str] + post_data
                 id_p += 1
-            #print(full_row)
+            print(full_row)
             distinct_linklist.append(link)
             distinct_posts.append(full_row)
         stopped, scrolls, height2 = scroller(scrolls, height2)
@@ -408,7 +414,11 @@ if __name__ == '__main__':
     from crawler_functions import *
     import credentials_file as cred
     os.chdir(file_path)
-    file ='Profile_X_2025-03-04'
+    files = os.listdir()
+    for e in files:
+        if 'Profile_X_2025' in str(e):
+            file = extract_text(e)
+            break
     df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
 
     # Driver and Browser setup
@@ -422,6 +432,7 @@ if __name__ == '__main__':
         skip = check_conditions(count, row, 0) # Start at the row 0
         if skip or count < 0:
             continue
+        break
         # Restart the browser after 10 companies
 #        if count > 0 and count % 10 == 0:
 #            driver = restart_browser(driver, webdriver, Service, chromedriver_path)
