@@ -60,7 +60,8 @@ def post_crawler_settings(file, platform, dt_str_now, upper_datelimit):
     dt = datetime.now()
     dt_str = dt.strftime("%d.%m.%Y")
     upper_dt = datetime.strptime(upper_datelimit, '%Y-%m-%d')
-    lower_dt = upper_dt - timedelta(days=367)
+    lower_dt = upper_dt - timedelta(days=366)
+#    lower_dt = upper_dt - timedelta(days=32)
     return df_source, dt, dt_str, upper_dt, lower_dt
 
 # Start the driver and open a new page
@@ -69,6 +70,8 @@ def start_browser(webdriver, Service, chromedriver_path, headless=False, muted =
     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.182 Safari/537.36"
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument(f'user-agent={user_agent}')
+    chrome_options.add_argument("--lang=de-DE")
+#    chrome_options.add_argument("--lang=en-US")
     chrome_options.add_argument("--disable-notifications")
     if headless:
         chrome_options.add_argument('--headless')
@@ -237,8 +240,35 @@ def get_company_keywords(company, row, col_list):
     comp_l4 = company.split()
     comp_l = list(set(comp_l1 + comp_l2 + comp_l3 + comp_l4))
     comp_keywords_f = [str(e).lower() for e in comp_l if len(str(e).lower()) >= 3]
-    appendix = ['gmbh', 'mbh', 'inc', 'limited', 'ltd', 'llc', 'com', 'co.', 'lda', 'the']
+    appendix = ['gmbh', 'mbh', 'inc', 'limited', 'ltd', 'llc', 'co.', 'lda', 'a.s.', 'S.A.', ' OG', ' AG', ' SE', 'GmbH & Co. KG', 'GmbH', 'B.V.', 'KG', 'LLC', 'NV', 'N.V.',
+            '& Co.', 'S.L.U.', '(', ')', '.de', '.com', '.at', 'oHG', 'Ltd.', 'Limited']
     comp_keywords = [e for e in comp_keywords_f if not any(a in e for a in appendix)] + [company]
+    web_name, name = None, None
+    appendix = ['gmbh', 'mbh', 'inc', 'limited', 'ltd', 'llc', 'co.', 'lda', 'a.s.', 'S.A.', ' OG', ' AG', ' SE',
+                'GmbH & Co. KG', 'GmbH', 'B.V.', 'KG', 'LLC', 'NV', 'N.V.',
+                '& Co.', 'S.L.U.', '(', ')', '.de', '.com', '.at', 'oHG', 'Ltd.', 'Limited']
+    comp_keywords = [e for e in comp_keywords_f if not any(a in e for a in appendix)] + [company]
+    web_name, name = None, None
+    for e in col_list:
+        web_name = None
+        el = e.lower()
+        if 'name ' in el and not name:
+            name = extract_text(row[e])
+            comp_keywords.append(name)
+        elif 'webs' in el:
+            col_val = extract_text(row[e])
+            if len(col_val) >= 4:
+                web_name = str(col_val).split('//', 1)[1].replace('www.', '').split('.')[0]
+        elif 'homepage' in el:
+            col_val = extract_text(row[e])
+            if len(col_val) >= 4:
+                web_name = col_val.split('.')[0]
+        elif 'internet' in el:
+            col_val = extract_text(row[e])
+            if len(col_val) >= 4:
+                web_name = col_val.split('.')[0]
+        if web_name:
+            comp_keywords.append(web_name)
     sm_names = ['Facebook', 'Instagram']
     for n in sm_names:
         if n in col_list:
