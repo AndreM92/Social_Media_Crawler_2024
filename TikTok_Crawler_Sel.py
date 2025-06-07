@@ -6,7 +6,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 import selenium.webdriver.support.expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 
-#import pyautogui
+import pyautogui
 
 import requests
 from bs4 import BeautifulSoup
@@ -20,6 +20,11 @@ import re
 from datetime import datetime, timedelta
 
 import os
+
+#time.sleep(3)
+x,y = (1204, 1051)
+#x,y = pyautogui.position()
+
 # Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
@@ -27,25 +32,41 @@ startpage = 'https://www.tiktok.com/'
 platform = 'TikTok'
 dt_str_now = None
 
-upper_datelimit = '2025-02-01'
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Arzneimittelhersteller_2025"
-source_file = file_path + '\Auswahl_Arzneimittelhersteller 2025_2025-02-05.xlsx'
+upper_datelimit = '2025-05-01'
+file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Banken_2025"
+source_file = file_path + '\Auswahl_SMP Banken 2025_2025-04-01.xlsx'
+branch_keywords = ['Bank', 'Finanz', 'Anlage', 'Anleg', 'Kurs', 'Aktie', 'Institut', 'Geld', 'Vermögen', 'Spar',
+                   'dienstleist']
 #branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
 #                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
 #file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
 #source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
 ########################################################################################################################
+def check_for_captchas(soup, pagetext, link):
+    if 'Puzzleteil' in pagetext or 'Verifiziere' in pagetext or 'Schieberegler' in pagetext:
+        pyautogui.moveTo(x, y)
+        pyautogui.click()
+        driver.maximize_window()
+        input('Press ENTER after solving the captcha')
+        driver.get(link)
+        time.sleep(1)
+        soup = BeautifulSoup(driver.page_source, 'lxml')
+        pagetext = get_visible_text(Comment, soup)
+        time.sleep(1)
+    return soup, pagetext
+
 
 # A function to open the targetpage and scrape the profile stats
-def scrapeProfile(url):
+def scrapeProfile(link):
     p_name, pagelikes, follower, following, last_post, desc = ['' for i in range(6)]
-    driver.get(url)
+    driver.get(link)
     time.sleep(3)
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = get_visible_text(Comment, soup)
-    if not pagetext or len(pagetext) <= 100 or 'Verifiziere, um fortzufahren' in pagetext:
-        input('Press ENTER after solving the captcha')
-        pagetext = get_visible_text(Comment, soup)
+    if 'Konto konnte nicht gefunden werden' in pagetext or 'Seite nicht verfügbar' in pagetext:
+        return [p_name, '', '', '', '', url, '', pagetext]
+    if not pagetext or len(pagetext) <= 100:
+        soup, pagetext = check_for_captchas(soup, pagetext, link)
     header_elems = soup.find_all('h1',{'data-e2e':'user-title'})
     if len(header_elems) == 0:
         header_elems = soup.find_all('h1')
@@ -65,7 +86,7 @@ def scrapeProfile(url):
                     pagelikes = extract_every_number(i.split('Like')[0].strip())
                 elif 'Follower' in i:
                     follower = extract_every_number(i.split('Follower')[0].strip())
-                elif 'Folge' in i:
+                elif 'Folge' in i or 'Gefolgt' in i:
                     following = extract_every_number(i.split('Folge')[0].strip())
     desc = get_visible_text(Comment, soup.find('h2',{'data-e2e':'user-bio'}))
     if len(desc) <= 4:
@@ -80,7 +101,7 @@ def scrapeProfile(url):
     links = [l['href'] for l in soup.find_all('a',href=True)]
     videolinks = list(set([l for l in links if 'video' in str(l)]))
     if len(videolinks) == 0:
-        input('Press ENTER after solving the captcha')
+        soup, pagetext = check_for_captchas(soup, pagetext)
         links = [l['href'] for l in soup.find_all('a', href=True)]
         videolinks = list(set([l for l in links if 'video' in str(l)]))
     if len(videolinks) == 0:
@@ -117,7 +138,7 @@ if __name__ == '__main__':
     count = 0  # If id's aren't ordered
     for id, row in df_source.iterrows():
         count += 1
-        if count <= 74:  # If you want to skip some rows
+        if count <= 0:  # If you want to skip some rows
             continue
 
         company = extract_text(row[comp_header])
@@ -131,7 +152,7 @@ if __name__ == '__main__':
             continue
 
         scraped_data = scrapeProfile(url)
-        full_row = [id, company, dt_str] + scraped_data
+        full_row = [count, company, dt_str] + scraped_data
         data.append(full_row)
         print(count,full_row[:-1])
 
@@ -144,34 +165,32 @@ if __name__ == '__main__':
     # Export to Excel
     #    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
     dt_str_now = datetime.now().strftime("%Y-%m-%d")
-    recent_filename = 'Profile_' + platform + '_' + dt_str_now + '.xlsx'
+    recent_filename = 'Profile_' + platform + '_' + dt_str_now + '2.xlsx'
     df_profiles.to_excel(recent_filename)
 
     driver.quit()
 
 ########################################################################################################################
 # Post Crawler functions
-def check_conditions(id, p_name, url, row, lower_dt, start_at=0):
+def check_conditions(id, p_name, link, row, lower_dt, start_at=0):
     if id < start_at:      # If you want to skip some rows
         return False
     if len(p_name) == 0 or p_name.lower() == 'nan' or p_name == 'None':
         return False
     posts = str(row['last_post'])
-    if len(url) < 10 or len(posts) <= 4 or 'Keine Beiträge' in posts:
-        print([id, p_name, url])
+    if len(link) < 10 or len(posts) <= 4 or 'Keine Beiträge' in posts:
+        print([id, p_name, link])
         return False
     try:
         last_datestr = extract_text(row['last_post'])
         last_dt = datetime.strptime(last_datestr, "%d.%m.%Y")
         if (last_dt + timedelta(days=31)) < lower_dt:
             return False
-        driver.get(url)
-        time.sleep(5)
+        driver.get(link)
+        time.sleep(3)
         soup = BeautifulSoup(driver.page_source, 'lxml')
         pagetext = get_visible_text(Comment, soup)
-        if 'Puzzleteil' in pagetext or 'Verifiziere' in pagetext:
-            input('Press ENTER after solving the captcha')
-            time.sleep(1)
+        soup, pagetext = check_for_captchas(soup, pagetext, link)
         return True
     except:
         pass
@@ -221,6 +240,8 @@ def get_videolinks(driver):
 def scrape_post(count, p_name, video_info):
     views = video_info[0]
     link = video_info[1]
+    if not link:
+        link = driver.current_url
     if not link or len(link) <= 10:
         return None, None
     if count == 0:
@@ -231,16 +252,10 @@ def scrape_post(count, p_name, video_info):
         time.sleep(3)
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = get_visible_text(Comment, soup)
-    if len(pagetext) <= 100 or 'Puzzleteil' in pagetext or 'Verifiziere' in pagetext or 'Schieberegler' in pagetext:
-        input('Press ENTER after solving the captcha')
-        time.sleep(1)
-        soup = BeautifulSoup(driver.page_source, 'lxml')
-        pagetext = get_visible_text(Comment, soup)
+    if len(pagetext) <= 300:
+        soup, pagetext = check_for_captchas(soup, pagetext, link)
     if 'Seite nicht verfügbar' in pagetext or 'Fehler beim Anzeigen der Webseite' in pagetext:
-        driver.get(link)
-        time.sleep(3)
-        soup = BeautifulSoup(driver.page_source, 'lxml')
-        pagetext = get_visible_text(Comment, soup)
+        return None, None
     date_str = str(extract_text(soup.find('span', {'data-e2e': 'browser-nickname'})))
     if len(date_str) <= 4:
         if pagetext and len(pagetext) >= 100:
@@ -292,6 +307,7 @@ if __name__ == '__main__':
     os.chdir(file_path)
     file ='Profile_' + platform + '_2025'
     df_source, dt, crawl_datestr, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
+    col_names = list(df_source.columns)
 
     # Driver and Browser setup
     all_data = []
@@ -300,11 +316,13 @@ if __name__ == '__main__':
 
     # Iterate over the companies
     for id, row in df_source.iterrows():
-        if 'ID_new' in col_list:
+        if 'ID_new' in col_names:
             id = row['ID_new']
+        elif 'ID' in col_names:
+            id = row['ID']
         url = str(row['url'])
         p_name = str(row['profile_name'])
-        go_crawl = check_conditions(n, p_name, url, row, lower_dt, start_at=0)
+        go_crawl = check_conditions(id, p_name, url, row, lower_dt, start_at=0)
         if not go_crawl:
             continue
 
@@ -316,8 +334,8 @@ if __name__ == '__main__':
             continue
         data_per_company = []
         id_p = 0
-#        for count, video_info in enumerate(video_info_list[error_index:]):
-        for count, video_info in enumerate(video_info_list):
+        error_index = 0
+        for count, video_info in enumerate(video_info_list[error_index:]):
             error_index = video_info_list.index(video_info)
             date_dt, scraped_postdata = scrape_post(count, p_name, video_info)
             print(scraped_postdata)
