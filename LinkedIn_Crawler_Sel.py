@@ -26,13 +26,15 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.linkedin.com/login/de'
 platform = 'LinkedIn'
 dt_str_now = None
-upper_datelimit = '2025-02-01'
+upper_datelimit = '2025-08-01'
 
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Arzneimittelhersteller_2025"
-source_file = file_path + '\Auswahl_Arzneimittelhersteller 2025_2025-02-05.xlsx'
-branch_keywords = ['Pharma', 'Arznei', 'Medikament', 'Wirkstoff', 'Supplement', 'Forschung', 'Studie', 'Medizin', 'leistung', 'Krank', 'krank']
-#branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
-#                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
+upper_datelimit = '2025-08-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Automatisierungstechnik 2025'
+file_name = 'Auswahl_SMP Automatisierungstechnik 2025-08-01'
+file_type = '.xlsx'
+source_file = file_path + '/' + file_name + file_type
+branch_keywords = ['Automatisierung', 'System', 'Technik', 'Maschine', 'Industrie', 'Automation', 'Technologie',
+                   'Technology', 'Roboter', 'Steuerung', 'technik']
 ########################################################################################################################
 
 # Login function
@@ -67,6 +69,15 @@ def find_post_date(p):
                 pass
     return post_date_dt, last_post
 
+def find_exact_follower(p):
+    post_text = extract_text(p)
+    text_list = post_text.split()
+    for pos, t in enumerate(text_list):
+        if 'Follower' in t:
+            exact_follower = extract_number(text_list[pos-1])
+            return exact_follower
+    return None
+
 
 def scrapeProfile(company, link):
     p_name, follower, employees, last_post, desc1, desc2, tagline = ['' for _ in range(7)]
@@ -75,13 +86,22 @@ def scrapeProfile(company, link):
     new_url = driver.current_url
     if new_url[-1] != '/':
         link = new_url.rsplit('/', 1)[0]
+    if driver.current_url != link:
         driver.get(link)
         time.sleep(2)
     url_adds = ['posts/','about/','people/','?feedView=all', '?originalSubdomain=de']
     for u in url_adds:
         new_url = new_url.replace(u,'')
-    driver.get(new_url)
-    time.sleep(2)
+        if driver.current_url != new_url:
+            driver.get(new_url)
+            time.sleep(2)
+    if '?' in new_url:
+        new_page = new_url.split('?')[0]
+        try:
+            driver.get(new_page)
+            time.sleep(2)
+        except:
+            pass
     new_url = driver.current_url
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = get_visible_text(Comment, soup)
@@ -148,6 +168,9 @@ def scrapeProfile(company, link):
                 desc1 = str(h) + '; ' + desc1
                 break
     post_date_dt, last_post = find_post_date(posts[0])
+    exact_follower = find_exact_follower(p)
+    if exact_follower:
+        follower = exact_follower
 
     return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
 ########################################################################################################################
@@ -163,27 +186,38 @@ if __name__ == '__main__':
 
     # Start crawling
     data = []
+    old_ID = 0
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
     login(cred.useremail_li, cred.password_li)
     # LinkedIn might require you to enter a confirmation code at this point for security reasons.
 
     # Loop
-    for count, row in df_source.iterrows():
-        if count < 0:   # If you want to skip some rows
+    for n, row in df_source.iterrows():
+        ID = n
+        if isinstance(ID,(int,float)) and (ID <= old_ID or ID > 9999):   # If you want to skip some rows
             continue
-        id = row['ID']
+        old_ID = ID
         company = extract_text(row[name_header])
         link = str(row[platform])
         if len(link) < 10:
-            empty_row = [id, company, dt_str] + ['' for _ in range(8)]
+            empty_row = [ID, company, dt_str] + ['' for _ in range(8)]
             data.append(empty_row)
             print(empty_row)
             continue
+        try:
+            scraped_row = scrapeProfile(company, link)
+        except Exception as e:
+            print(f"Error: {e}")
+            driver.quit()
+            time.sleep(3)
+            driver = start_browser(webdriver, Service, chromedriver_path)
+            go_to_page(driver, startpage)
+            login(cred.useremail_li, cred.password_li)
+            scraped_row = scrapeProfile(company, link)
 
-        scraped_row = scrapeProfile(company, link)
-        data.append([id, company, dt_str] + scraped_row)
-        print([id, company, dt_str] + scraped_row)
+        data.append([ID, company, dt_str] + scraped_row)
+        print([ID, company, dt_str] + scraped_row)
 
     # Create a DataFrame
     header = ['ID', 'company', 'date', 'profile_name', 'follower', 'employees', 'last_post', 'url', 'tagline',
@@ -291,7 +325,12 @@ if __name__ == '__main__':
     from crawler_functions import *
     import credentials_file as cred
     os.chdir(file_path)
-    file ='Profile_LinkedIn_2025-02-16'
+    files = os.listdir()
+    for e in files:
+        if 'Profile_LinkedIn_2025' in str(e):
+            file = extract_text(e)
+            break
+    file ='Profile_LinkedIn_2025-04-06'
 
 #    dt_str_now = None
     df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
@@ -306,7 +345,7 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
     login(cred.useremail_li, cred.password_li)
 
-    old_id = 11
+    old_id = 0
     # Iterate over the companies
     for n, row in df_source.iterrows():
         id = row['ID']
