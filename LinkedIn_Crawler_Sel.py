@@ -30,7 +30,7 @@ upper_datelimit = '2025-08-01'
 
 upper_datelimit = '2025-08-01'
 file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Automatisierungstechnik 2025'
-file_name = 'Auswahl_SMP Automatisierungstechnik 2025-08-01'
+file_name = 'Auswahl_SMP Automatisierungstechnik 2025_2025-08-06'
 file_type = '.xlsx'
 source_file = file_path + '/' + file_name + file_type
 branch_keywords = ['Automatisierung', 'System', 'Technik', 'Maschine', 'Industrie', 'Automation', 'Technologie',
@@ -197,6 +197,8 @@ if __name__ == '__main__':
         ID = n
         if isinstance(ID,(int,float)) and (ID <= old_ID or ID > 9999):   # If you want to skip some rows
             continue
+        if ID >= 1:
+
         old_ID = ID
         company = extract_text(row[name_header])
         link = str(row[platform])
@@ -289,7 +291,7 @@ def scrape_post(p):
             comments = num
             if str(comments)[-1] == '.':
                 comments = extract_number(comments)
-        elif ' geteilt' in a or 'Veröffentlichungen' in a and shares == '':
+        elif 'Repost' in a or 'Veröffentlichungen' in a and shares == '':
             shares = num
             if str(shares)[-1] == '.':
                 shares = extract_number(shares)
@@ -330,14 +332,12 @@ if __name__ == '__main__':
         if 'Profile_LinkedIn_2025' in str(e):
             file = extract_text(e)
             break
-    file ='Profile_LinkedIn_2025-04-06'
 
-#    dt_str_now = None
+    dt_str_now = None
     df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
-    current_id = 0
 
-    # Current date
-    upper_dt = datetime.now()
+    # Crawl up to the current date
+#    upper_dt = datetime.now()
 
     # Driver and Browser setup
     all_data = []
@@ -348,13 +348,13 @@ if __name__ == '__main__':
     old_id = 0
     # Iterate over the companies
     for n, row in df_source.iterrows():
-        id = row['ID']
+        ID = row['ID']
         url = str(row['url'])
         p_name = str(row['profile_name'])
         go_crawl = check_conditions(n, p_name, row, lower_dt, start_at=old_id) # Start at the row 0
         if not go_crawl:
             continue
-        old_id = id
+        old_id = ID
 
         scroll_to_bottom()
         soup = BeautifulSoup(driver.page_source, 'lxml')
@@ -364,7 +364,6 @@ if __name__ == '__main__':
         data_per_company = []
         id_p = 0
         for count, p in enumerate(posts):
-            extract_text(p)
             post_dt, postdata = scrape_post(p)
             print(postdata)
             if post_dt >= upper_dt:
@@ -372,7 +371,7 @@ if __name__ == '__main__':
             if post_dt < lower_dt:
                 break
             id_p += 1
-            full_row = [id, p_name, id_p, dt_str] + postdata
+            full_row = [ID, p_name, id_p, dt_str] + postdata
             data_per_company.append(full_row)
 
         all_data += data_per_company
