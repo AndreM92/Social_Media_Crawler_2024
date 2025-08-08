@@ -256,9 +256,12 @@ def get_company_keywords(company, row, col_list):
             name = extract_text(row[e])
             comp_keywords.append(name)
         elif 'webs' in el:
-            col_val = extract_text(row[e])
+            col_val = str(extract_text(row[e]))
+            break
             if len(col_val) >= 4:
-                web_name = str(col_val).split('//', 1)[1].replace('www.', '').split('.')[0]
+                if '//' in col_val:
+                    col_val = str(col_val).split('//', 1)[1]
+                web_name = col_val.replace('www.', '').split('.')[0]
         elif 'homepage' in el:
             col_val = extract_text(row[e])
             if len(col_val) >= 4:
@@ -294,7 +297,7 @@ def sm_filter(linklist):
     sm_links_all = [l for l in linklist if any(p in l for p in platforms)]
     not_profile = ['/post', 'hashtag', 'sharer','/status', 'photo/', 'photos', 'watch?', '/video/', 'discover', '.help',
                     'reels', 'story', 'explore', 'playlist', '/share', 'policy', 'privacy', 'instagram.com/p/',
-                   '/tag/','/embed/', '/music.tiktok', '/question/' 'tiktok.com/channel']
+                   '/tag/','/embed/', '/music.tiktok', '/question/' 'tiktok.com/channel','/pages']
     sm_links = [l for l in sm_links_all if not any(e in l for e in not_profile)]
     sm_links = list(set(sm_links))
     sm_links.sort(key=len)
@@ -386,8 +389,7 @@ def dateFormat(d):
                 year = new_date.year
         else:
             # Pay attention to the year
-            if (datetime.now() - datetime.strptime('31.12.2024', '%d.%m.%Y')).days <= 6:
-                year = datetime.now().year - 1
+            year = datetime.now().year
             date_ls = d.split('.')
             if len(date_ls) == 2:
                 day, rest = date_ls
@@ -422,7 +424,7 @@ def dateFormat(d):
     except:
         date_string = f'{day}.{month}.{year-1}'
         dt_format = datetime.strptime(date_string, '%d.%m.%Y')
-    if dt_format > datetime.now():
+    if dt_format > datetime.now() - timedelta(days=60):
         date_string = f'{day}.{month}.{year - 1}'
         dt_format = datetime.strptime(date_string, '%d.%m.%Y')
     return dt_format
