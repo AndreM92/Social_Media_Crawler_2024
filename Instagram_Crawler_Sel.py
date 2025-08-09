@@ -29,11 +29,14 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 dt_str_now = None
-upper_datelimit = '2025-04-01'
 
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Banken_2025"
-source_file = file_path + '\Auswahl_SMP Banken 2025_2025-04-01.xlsx'
-branch_keywords = ['Bank', 'Finanz', 'Anlage', 'Anleg', 'Kurs', 'Aktie', 'Institut', 'Geld', 'Vermögen', 'Spar', 'dienstleist']
+upper_datelimit = '2025-08-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Automatisierungstechnik 2025'
+file_name = 'Auswahl_SMP Automatisierungstechnik 2025_2025-08-06'
+file_type = '.xlsx'
+source_file = file_path + '/' + file_name + file_type
+branch_keywords = ['Automatisierung', 'System', 'Technik', 'Maschine', 'Industrie', 'Automation', 'Technologie',
+                   'Technology', 'Roboter', 'Steuerung', 'technik']
 ########################################################################################################################
 
 def remove_insta_cookies():
@@ -159,24 +162,21 @@ if __name__ == '__main__':
     login(cred.username_insta, cred.password_insta)
 
     # Iterating over the companies
-    count = 0  # If id's aren't ordered
-    for id, row in df_source.iterrows():
-        id +=1
-        count += 1
-        if count <= 0:  # If you want to skip some rows
+    for ID, row in df_source.iterrows():
+        if ID <= 0:  # If you want to skip some rows
             continue
         company = extract_text(row[comp_header])
         comp_keywords = get_company_keywords(company, row, col_list)
         url = str(row[platform])
-        if len(url) < 10:
-            empty_row = [id, company, dt_str] + ['' for _ in range(6)]
+        if len(url) < 10 or url == 'https://www.instagram.com':
+            empty_row = [ID, company, dt_str] + ['' for _ in range(6)]
             data.append(empty_row)
             continue
 
         scraped_data = scrapeProfile(url, comp_keywords)
-        full_row = [id, company, dt_str] + scraped_data
+        full_row = [ID, company, dt_str] + scraped_data
         data.append(full_row)
-        print(count,full_row)
+        print(full_row)
 
 
     # DataFrame
@@ -236,8 +236,12 @@ def nextPost(url, startlink,):
                 pyautogui.moveTo(1865, 575)
                 pyautogui.click()
     if len(next_buttons) >= 1:
-        next_buttons[0].click()
-        time.sleep(2)
+        try:
+            next_buttons[0].click()
+            time.sleep(2)
+        except:
+
+            time.sleep(2)
     post_url = driver.current_url
     if post_url == startlink or post_url == url or not 'instagram.com' in post_url:
         post_url == None
@@ -327,7 +331,7 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
         if content_elem:
             inner_content = content_elem.find('div',class_='xt0psk2')
             content = get_visible_text(Comment, inner_content)
-            if content_elem and len(content) <= 50:
+            if content_elem and len(str(content)) <= 50:
                 content = get_visible_text(Comment, content_elem)
     if not content_elem:
         content_elem = soup.find('div', class_='x4h1yfo')
@@ -362,9 +366,12 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
             show_likes_button = driver.find_element(By.CLASS_NAME, '_aauw')
             if show_likes_button:
                 show_likes_button.click()
-            # Two clicks to get on the next post
+                # Two clicks to get on the next post
+#                x,y = pyautogui.position()
             likes_elem = driver.find_element(By.CLASS_NAME, '_aauu')
             likes = extract_number(extract_text(likes_elem))
+            pyautogui.moveTo(1214, 891)
+            pyautogui.click()
         elif 'weiteren Personen' in react_text:
             likelink = ['https://www.instagram.com/' + l['href'] for l in soup.find_all('a', href=True) if
                         'liked' in l['href']]
@@ -450,14 +457,16 @@ if __name__ == '__main__':
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
     login(cred.username_insta, cred.password_insta)
-    time.sleep(2)
+    if '/auth_platform' in driver.current_url:
+        input('Press ENTER after 2FA')
+    time.sleep(3)
 
     # Loop
     start_time = time.time()
     for count, row in df_source.iterrows():
         # Instagram will block your account after one hour of scraping
         # If needed, insert the browser close and restart function here (see below)
-        crawl = check_conditions(count,row,start_at=29)
+        crawl = check_conditions(count,row,start_at=0)
         if not crawl:
             continue
         url = extract_text(row['url'])
@@ -512,7 +521,7 @@ if __name__ == '__main__':
         # Close the crawler after two hours
         end_time = time.time()
         time_diff = end_time - start_time
-        if time_diff >= (120 * 60):
+        if time_diff >= (180 * 60):
             start_time = time.time()
             driver.quit()
 
@@ -542,7 +551,7 @@ if __name__ == '__main__':
     from crawler_functions import *
     import credentials_file as cred
     os.chdir(file_path)
-    source_file = 'Beiträge_Instagram_2025-04-06.xlsx'
+    source_file = 'Beiträge_Instagram_2025_bis 31.xlsx'
     df_fillc = pd.read_excel(source_file)
 
     fill_data = []
