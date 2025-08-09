@@ -441,6 +441,8 @@ def get_approx_date(crawl_date_dt, date_str):
     elif 'Woche' in date_str or 'W.' in date_str:
         delta = int(re.sub(r'[^0-9]', '', date_str))
         post_date_dt = crawl_date_dt - timedelta(weeks=delta)
+    elif '0 Monate' in date_str:
+        post_date_dt = crawl_date_dt - timedelta(weeks=4)
     elif 'Monat' in date_str:
         delta = int(re.sub(r'[^0-9]', '', date_str))
         post_date_dt = crawl_date_dt - timedelta(days=delta*30)
