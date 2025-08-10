@@ -333,6 +333,7 @@ def scrape_post(p, p_name):
 
 
 def scrape_all_posts(ID, p_name, lower_dt, upper_datelimit):
+    upper_dt = datetime.strptime(upper_datelimit, '%Y-%m-%d')
     data_per_company = []
     distinct_content = []
     id_p = 0
@@ -343,7 +344,6 @@ def scrape_all_posts(ID, p_name, lower_dt, upper_datelimit):
         posts = soup.find_all('div', class_='ember-view occludable-update')
         for p in posts:
             post_dt, postdata = scrape_post(p, p_name)
-            upper_dt = datetime.strptime(upper_datelimit,'%Y-%m-%d')
             if not postdata or (post_dt and post_dt >= upper_dt):
                 continue
             if post_dt and post_dt < lower_dt:
@@ -356,9 +356,9 @@ def scrape_all_posts(ID, p_name, lower_dt, upper_datelimit):
                 distinct_content = distinct_content_new
                 id_p += 1
 
-        if len_post_list == len(data_per_company) and no_p >= 3:
+        if len_post_list == len(data_per_company) and no_p > 10:
             print('No more new posts')
-            return data_per_company
+ #           return data_per_company
         if len_post_list == len(data_per_company):
             no_p += 1
         else:
@@ -390,11 +390,13 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
     login(cred.useremail_li, cred.password_li)
 
-    old_ID = 106
+    old_ID = 0
     # Iterate over the companies
     for n, row in df_source.iterrows():
         ID = row['ID']
         if ID <= old_ID:    # Starts after the last profile
+            continue
+        if ID not in [24, 46, 48, 55, 64, 65, 72]:
             continue
         url = str(row['url'])
         p_name = str(row['profile_name'])
@@ -410,6 +412,7 @@ if __name__ == '__main__':
             go_crawl = check_conditions(n, p_name, row, lower_dt, start_at=old_id)  # Start at the row 0
         if not go_crawl:
             continue
+
         old_ID = ID
         data_per_company = scrape_all_posts(ID, p_name, lower_dt, upper_datelimit)
         all_data += data_per_company
