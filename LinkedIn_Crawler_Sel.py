@@ -197,8 +197,6 @@ if __name__ == '__main__':
         ID = n
         if isinstance(ID,(int,float)) and (ID <= old_ID or ID > 9999):   # If you want to skip some rows
             continue
-        if ID >= 1:
-
         old_ID = ID
         company = extract_text(row[name_header])
         link = str(row[platform])
@@ -241,7 +239,7 @@ def scroll_to_bottom():
     start_height = driver.execute_script('return document.body.scrollHeight')
     new_height = ''
     safety_counter = 0
-    while start_height != new_height and safety_counter <= 20:
+    while start_height != new_height and safety_counter <= 50:
         driver.execute_script('window.scrollTo(0,document.body.scrollHeight)')
         time.sleep(1)
         new_height = driver.execute_script('return document.body.scrollHeight')
@@ -273,11 +271,24 @@ def check_conditions(id, p_name, row, lower_dt, start_at=0):
         return False
     return True
 
+def check_distinct(distinct_content, scraped_post):
+    p_text = str(scraped_post[-1])
+    content_short = p_text
+    if len(p_text) >= 200:
+        content_short = p_text[:99] + p_text[-100:]
+    if content_short not in distinct_content:
+        distinct_content.append(content_short)
+        return distinct_content
+    return None
 
-def scrape_post(p):
+def scrape_post(p, p_name):
     post_date_dt, post_date = find_post_date(p)
-    likes, comments, shares = ['' for _ in range(3)]
+    post_type, likes, comments, shares = ['' for _ in range(4)]
     post_text = get_visible_text(Comment, p)
+    if p_name in post_text:
+        post_type = 'post'
+    if 'repostet' in post_text:
+        post_type = 'repost'
     react_elements = p.find_all('button', attrs={'aria-label': True})
     aria_labels = [a['aria-label'] for a in react_elements]
     for a in aria_labels:
@@ -316,8 +327,46 @@ def scrape_post(p):
     else:
         image, video = 0,0
     link = ''
-    result = [post_date, likes, comments, shares, image, video, link, content]
-    return post_date_dt, result
+    content = content.replace('Hashtag # ','#')
+    scraped_post = [post_date, post_type, likes, comments, shares, image, video, link, content]
+    return post_date_dt, scraped_post
+
+
+def scrape_all_posts(ID, p_name, lower_dt, upper_datelimit):
+    data_per_company = []
+    distinct_content = []
+    id_p = 0
+    no_p = 0
+    for _ in range(100):
+        len_post_list = len(data_per_company)
+        soup = BeautifulSoup(driver.page_source, 'lxml')
+        posts = soup.find_all('div', class_='ember-view occludable-update')
+        for p in posts:
+            post_dt, postdata = scrape_post(p, p_name)
+            upper_dt = datetime.strptime(upper_datelimit,'%Y-%m-%d')
+            if not postdata or (post_dt and post_dt >= upper_dt):
+                continue
+            if post_dt and post_dt < lower_dt:
+                break
+            distinct_content_new = check_distinct(distinct_content, postdata)
+            if distinct_content_new:
+                full_row = [ID, p_name, id_p, dt_str] + postdata
+                print(full_row)
+                data_per_company.append(full_row)
+                distinct_content = distinct_content_new
+                id_p += 1
+
+        if len_post_list == len(data_per_company) and no_p >= 3:
+            print('No more new posts')
+            return data_per_company
+        if len_post_list == len(data_per_company):
+            no_p += 1
+        else:
+            no_p = 0
+        driver.execute_script("window.scrollBy(0, 2000);")
+        wait_time = round(((len_post_list) * 0.01) ** 0.5)
+        time.sleep(wait_time)
+    return data_per_company
 ########################################################################################################################
 
 # Post Crawler
@@ -332,12 +381,8 @@ if __name__ == '__main__':
         if 'Profile_LinkedIn_2025' in str(e):
             file = extract_text(e)
             break
-
     dt_str_now = None
     df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
-
-    # Crawl up to the current date
-#    upper_dt = datetime.now()
 
     # Driver and Browser setup
     all_data = []
@@ -345,40 +390,33 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
     login(cred.useremail_li, cred.password_li)
 
-    old_id = 0
+    old_ID = 106
     # Iterate over the companies
     for n, row in df_source.iterrows():
         ID = row['ID']
+        if ID <= old_ID:    # Starts after the last profile
+            continue
         url = str(row['url'])
         p_name = str(row['profile_name'])
-        go_crawl = check_conditions(n, p_name, row, lower_dt, start_at=old_id) # Start at the row 0
+        try:
+            go_crawl = check_conditions(n, p_name, row, lower_dt, start_at=old_ID)  # Start at the row 0
+        except Exception as e:
+            print(f"Error: {e}")
+            driver.quit()
+            time.sleep(5)
+            driver = start_browser(webdriver, Service, chromedriver_path)
+            go_to_page(driver, startpage)
+            login(cred.useremail_li, cred.password_li)
+            go_crawl = check_conditions(n, p_name, row, lower_dt, start_at=old_id)  # Start at the row 0
         if not go_crawl:
             continue
-        old_id = ID
-
-        scroll_to_bottom()
-        soup = BeautifulSoup(driver.page_source, 'lxml')
-        posts = soup.find_all('div', class_='ember-view occludable-update')
-#        if len(posts) == 0:
-#            continue
-        data_per_company = []
-        id_p = 0
-        for count, p in enumerate(posts):
-            post_dt, postdata = scrape_post(p)
-            print(postdata)
-            if post_dt >= upper_dt:
-                continue
-            if post_dt < lower_dt:
-                break
-            id_p += 1
-            full_row = [ID, p_name, id_p, dt_str] + postdata
-            data_per_company.append(full_row)
-
+        old_ID = ID
+        data_per_company = scrape_all_posts(ID, p_name, lower_dt, upper_datelimit)
         all_data += data_per_company
 
         # Create a DataFrame with all posts
         header1 = ['ID_A', 'Profilname', 'ID_P', 'Erhebung', 'Datum']
-        header2 = ['Likes', 'Kommentare', 'Shares', 'Bild', 'Video', 'Link', 'Content']
+        header2 = ['post_type', 'Likes', 'Kommentare', 'Shares', 'Bild', 'Video', 'Link', 'Content']
         dfPosts = pd.DataFrame(all_data, columns=header1 + header2)
 
         # Export dfPosts to Excel (with the current time)
@@ -389,6 +427,13 @@ if __name__ == '__main__':
     driver.quit()
 ########################################################################################################################
 '''
+if ID % 5 == 0:
+    driver.quit()
+    time.sleep(5)
+    driver = start_browser(webdriver, Service, chromedriver_path)
+    go_to_page(driver, startpage)
+    login(cred.useremail_li, cred.password_li)
+    
 # def scrape_links():
     linklist = []
     dropdown_buttons = driver.find_elements(By.CSS_SELECTOR,'svg[a11y-text="Kontrollmenü öffnen"]')
