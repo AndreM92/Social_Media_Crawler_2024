@@ -32,15 +32,13 @@ startpage = 'https://www.tiktok.com/'
 platform = 'TikTok'
 dt_str_now = None
 
-upper_datelimit = '2025-05-01'
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Banken_2025"
-source_file = file_path + '\Auswahl_SMP Banken 2025_2025-04-01.xlsx'
-branch_keywords = ['Bank', 'Finanz', 'Anlage', 'Anleg', 'Kurs', 'Aktie', 'Institut', 'Geld', 'Vermögen', 'Spar',
-                   'dienstleist']
-#branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
-#                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
-#file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
-#source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
+upper_datelimit = '2025-08-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Automatisierungstechnik 2025'
+file_name = 'Auswahl_SMP Automatisierungstechnik 2025_2025-08-06'
+file_type = '.xlsx'
+source_file = file_path + '/' + file_name + file_type
+branch_keywords = ['Automatisierung', 'System', 'Technik', 'Maschine', 'Industrie', 'Automation', 'Technologie',
+                   'Technology', 'Roboter', 'Steuerung', 'technik']
 ########################################################################################################################
 def check_for_captchas(soup, pagetext, link):
     if 'Puzzleteil' in pagetext or 'Verifiziere' in pagetext or 'Schieberegler' in pagetext:
@@ -55,18 +53,17 @@ def check_for_captchas(soup, pagetext, link):
         time.sleep(1)
     return soup, pagetext
 
-
 # A function to open the targetpage and scrape the profile stats
-def scrapeProfile(link):
+def scrapeProfile(url):
     p_name, pagelikes, follower, following, last_post, desc = ['' for i in range(6)]
-    driver.get(link)
+    driver.get(url)
     time.sleep(3)
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = get_visible_text(Comment, soup)
     if 'Konto konnte nicht gefunden werden' in pagetext or 'Seite nicht verfügbar' in pagetext:
         return [p_name, '', '', '', '', url, '', pagetext]
     if not pagetext or len(pagetext) <= 100:
-        soup, pagetext = check_for_captchas(soup, pagetext, link)
+        soup, pagetext = check_for_captchas(soup, pagetext, url)
     header_elems = soup.find_all('h1',{'data-e2e':'user-title'})
     if len(header_elems) == 0:
         header_elems = soup.find_all('h1')
@@ -113,6 +110,8 @@ def scrapeProfile(link):
     time.sleep(3)
     soup = BeautifulSoup(driver.page_source, 'lxml')
     name_date = extract_text(soup.find('span',{'data-e2e':'browser-nickname'}))
+    if not name_date:
+        name_date = extract_text(soup.find('span', {'class': 'css-1kcycbd-SpanOtherInfos evv7pft3'}))
     if '·' in name_date:
         date_str = name_date.split('·')[-1].strip()
         last_dt, last_post = get_approx_date(datetime.now().date(), date_str)
@@ -135,6 +134,7 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
 
     # Iterating over the companies
+    first_captcha = None
     count = 0  # If id's aren't ordered
     for id, row in df_source.iterrows():
         count += 1
@@ -150,6 +150,11 @@ if __name__ == '__main__':
             empty_row = [id, company, dt_str] + ['' for _ in range(8)]
             data.append(empty_row)
             continue
+        if not first_captcha:
+            driver.get(url)
+            time.sleep(2)
+            check_for_captchas(soup,pagetext,url)
+            first_captcha = True
 
         scraped_data = scrapeProfile(url)
         full_row = [count, company, dt_str] + scraped_data
