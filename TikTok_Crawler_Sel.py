@@ -123,7 +123,6 @@ if __name__ == '__main__':
     # Settings for profile scraping
     os.chdir(path_to_crawler_functions)
     from crawler_functions import *
-    import credentials_file as cred
     os.chdir(file_path)
     df_source, col_list, comp_header, name_header, dt, dt_str = settings(source_file)
     col_names = list(df_source.columns)
@@ -135,10 +134,12 @@ if __name__ == '__main__':
 
     # Iterating over the companies
     first_captcha = None
-    count = 0  # If id's aren't ordered
-    for id, row in df_source.iterrows():
-        count += 1
-        if count <= 0:  # If you want to skip some rows
+    for n, row in df_source.iterrows():
+        if 'ID' in col_list and col_list[0] != 'ID':
+            ID = int(row['ID'])
+        elif not 'nan' in str(n):
+            ID = int(n)
+        if ID <= 0:  # If you want to skip some rows
             continue
 
         company = extract_text(row[comp_header])
@@ -147,19 +148,21 @@ if __name__ == '__main__':
         comp_keywords = get_company_keywords(company, row, col_list)
         url = str(row[platform])
         if len(url) < 10:
-            empty_row = [id, company, dt_str] + ['' for _ in range(8)]
+            empty_row = [ID, company, dt_str] + ['' for _ in range(8)]
             data.append(empty_row)
             continue
         if not first_captcha:
-            driver.get(url)
+            go_to_page(driver, startpage)
             time.sleep(2)
+            soup = BeautifulSoup(driver.page_source, 'lxml')
+            pagetext = get_visible_text(Comment, soup)
             check_for_captchas(soup,pagetext,url)
             first_captcha = True
 
         scraped_data = scrapeProfile(url)
-        full_row = [count, company, dt_str] + scraped_data
+        full_row = [ID, company, dt_str] + scraped_data
         data.append(full_row)
-        print(count,full_row[:-1])
+        print(ID,full_row[:-1])
 
     # DataFrame
     header = ['ID', 'company', 'date', 'profile_name', 'pagelikes', 'follower', 'following', 'last_post', 'url',

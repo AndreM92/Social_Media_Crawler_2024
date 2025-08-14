@@ -1,22 +1,5 @@
-
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
-import selenium.webdriver.support.expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
-import pyautogui
-
-import requests
 from bs4 import BeautifulSoup
 from bs4.element import Comment
-import lxml
-import time
-
-import numpy as np
-import pandas as pd
-import re
-from datetime import datetime, timedelta
 
 import os
 # Settings and paths for this program
@@ -25,16 +8,14 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://x.com/i/flow/login'
 platform = 'Twitter'
 dt_str_now = None
-upper_datelimit = '2025-05-01'
 
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Banken_2025"
-source_file = file_path + '\Auswahl_SMP Banken 2025_2025-04-01.xlsx'
-branch_keywords = ['Bank', 'Finanz', 'Anlage', 'Anleg', 'Kurs', 'Aktie', 'Institut', 'Geld', 'Vermögen', 'Spar',
-                   'dienstleist']
-#branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
-#                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
-#file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
-#source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
+upper_datelimit = '2025-08-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Automatisierungstechnik 2025'
+file_name = 'Auswahl_SMP Automatisierungstechnik 2025_2025-08-06'
+file_type = '.xlsx'
+source_file = file_path + '/' + file_name + file_type
+branch_keywords = ['Automatisierung', 'System', 'Technik', 'Maschine', 'Industrie', 'Automation', 'Technologie',
+                   'Technology', 'Roboter', 'Steuerung', 'technik']
 ########################################################################################################################
 
 # Login function
@@ -168,7 +149,11 @@ if __name__ == '__main__':
     # Settings for profile scraping
     os.chdir(path_to_crawler_functions)
     from crawler_functions import *
-    import credentials_file as cred
+    try:
+        import credentials_file as cred
+    except:
+        username_tw = str(input('Enter your username:')).strip()
+        password_tw = str(input('Enter your password:')).strip()
     os.chdir(file_path)
     df_source, col_list, comp_header, name_header, dt, dt_str = settings(source_file)
     if 'X' in col_list:
@@ -186,23 +171,24 @@ if __name__ == '__main__':
     login(driver, startpage, cred.username_tw, cred.password_tw)
 
     # Iterating over the companies
-    for id, row in df_source.iterrows():
-        if 'ID_new' in df_source.columns:
-            id = row['ID_new']
-        elif 'ID' in df_source.columns:
-            id = row['ID']
-        if id < 0:
+    for n, row in df_source.iterrows():
+        if 'ID' in col_list and col_list[0] != 'ID':
+            ID = int(row['ID'])
+        elif not 'nan' in str(n):
+            ID = int(n)
+        if ID <= 0:                   # If you want to skip some rows
             continue
+
         company = extract_text(row[comp_header])
         comp_keywords = get_company_keywords(company, row, col_list)
         url = str(row[platform])
         if len(url) < 10:
-            empty_row = [id, company, dt_str] + ['' for _ in range(7)]
+            empty_row = [ID, company, dt_str] + ['' for _ in range(7)]
             data.append(empty_row)
             continue
 
         datarow = scrapeProfile(driver, url)
-        full_row = [id, company, dt_str] + datarow
+        full_row = [ID, company, dt_str] + datarow
         data.append(full_row)
         print(datarow)
 
@@ -412,7 +398,11 @@ if __name__ == '__main__':
     # Settings for the post crawler
     os.chdir(path_to_crawler_functions)
     from crawler_functions import *
-    import credentials_file as cred
+    try:
+        import venv.credentials_file as cred
+    except:
+        username_tw = input('Enter your username:')
+        password_tw = input('Enter your password:')
     os.chdir(file_path)
     files = os.listdir()
     for e in files:
