@@ -1,4 +1,5 @@
 # Passwords
+venv/credentials_file.py
 credentials_file.py
 codegen_playground.py
 
