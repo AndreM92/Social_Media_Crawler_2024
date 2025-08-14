@@ -101,16 +101,16 @@ def go_to_page(driver, startpage):
             except:
                 pass
     # Not the best solution so far
-    '''
     cookiebuttons = driver.find_elements(By.TAG_NAME, "tiktok-cookie-banner")
-    if len(cookiebuttons) >= 1:
+    if len(cookiebuttons) >= 1 or 'tiktok.com' in driver.current_url:
         import pyautogui
-        pyautogui.moveTo(1507, 953)
+        pyautogui.moveTo(1452,867)
         pyautogui.click()
         time.sleep(1)
+        '''
         pyautogui.moveTo(955, 777)
         pyautogui.click()
-    '''
+        '''
 
 
 def start_pw_browser(sync_playwright, loginpage):
