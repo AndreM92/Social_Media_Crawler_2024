@@ -24,15 +24,14 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.youtube.com/'
 platform = 'YouTube'
 dt_str_now = None
-upper_datelimit = '2025-02-01'
 
-file_path = r"C:\Users\andre\OneDrive\Desktop\SMP_Arzneimittelhersteller_2025"
-source_file = file_path + '\Auswahl_Arzneimittelhersteller 2025_2025-02-05.xlsx'
-branch_keywords = ['Pharma', 'Arznei', 'Medikament', 'Wirkstoff', 'Supplement', 'Forschung', 'Studie', 'Medizin', 'leistung', 'Krank', 'krank']
-#branch_keywords = ['nutrition', 'vitamin', 'mineral', 'protein', 'supplement', 'diet', 'health', 'ernährung',
-#                   'ergänzung', 'gesundheit', 'nährstoff', 'fitness', 'sport', 'leistung']
-#file_path = r"C:\Users\andre\OneDrive\Desktop\Nahrungsergaenzungsmittel"
-#source_file = "Liste_Nahrungsergänzungsmittel_2024_Auswahl.xlsx"
+upper_datelimit = '2025-08-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Automatisierungstechnik 2025'
+file_name = 'Auswahl_SMP Automatisierungstechnik 2025_2025-08-06'
+file_type = '.xlsx'
+source_file = file_path + '/' + file_name + file_type
+branch_keywords = ['Automatisierung', 'System', 'Technik', 'Maschine', 'Industrie', 'Automation', 'Technologie',
+                   'Technology', 'Roboter', 'Steuerung', 'technik']
 ########################################################################################################################
 
 def base_url(url):
@@ -237,7 +236,6 @@ if __name__ == '__main__':
     # Settings for profile scraping
     os.chdir(path_to_crawler_functions)
     from crawler_functions import *
-    import credentials_file as cred
     os.chdir(file_path)
     df_source, col_list, comp_header, name_header, dt, dt_str = settings(source_file)
 
@@ -248,22 +246,24 @@ if __name__ == '__main__':
 
     # Iterating over the companies
     for n, row in df_source.iterrows():
-        id = row['ID']
-        if id < 0:  # If you want to skip some rows / if n < 0:
+        if 'ID' in col_list and not col_list[0] == 'ID':
+            ID = int(row['ID'])
+        else:
+            ID = int(n)
+        if ID <= 0:  # If you want to skip some rows / if n < 0:
             continue
         company = extract_text(row[comp_header])
         comp_keywords = get_company_keywords(company, row, col_list)
         url = str(row[platform])
         if len(url) < 10:
-            empty_row = [id, company, dt_str] + ['' for _ in range(6)]
+            empty_row = [ID, company, dt_str] + ['' for _ in range(6)]
             data.append(empty_row)
             continue
 
         scraped_data = scrapeProfile(url, comp_keywords)
-        full_row = [id, company, dt_str] + scraped_data
+        full_row = [ID, company, dt_str] + scraped_data
         data.append(full_row)
-        print(n, full_row[:-1])
-
+        print(full_row[:-1])
 
     # DataFrame
     header = ['ID', 'company', 'date', 'profile_name', 'follower', 'all_posts', 'last_post', 'url', 'description']
@@ -382,7 +382,7 @@ if __name__ == '__main__':
     # Iterate over the companies
     for count, row in df_source.iterrows():
         url = str(row['url'])
-        go_crawl = check_conditions(count,row,start_at=82)
+        go_crawl = check_conditions(count,row,start_at=0)
         if not go_crawl:
             continue
 
@@ -403,7 +403,6 @@ if __name__ == '__main__':
         dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
         file_name = 'Beiträge_' + platform + '_' + dt_str_now + '.xlsx'
         dfPosts.to_excel(file_name)
-
 
     driver.quit()
 ########################################################################################################################
