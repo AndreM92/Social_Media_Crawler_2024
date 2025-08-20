@@ -1,7 +1,8 @@
+
+import os
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 
-import os
 # Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
@@ -150,7 +151,7 @@ if __name__ == '__main__':
     os.chdir(path_to_crawler_functions)
     from crawler_functions import *
     try:
-        import credentials_file as cred
+        from credentials_file import *
     except:
         username_tw = str(input('Enter your username:')).strip()
         password_tw = str(input('Enter your password:')).strip()
@@ -168,7 +169,7 @@ if __name__ == '__main__':
     data = []
     driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
-    login(driver, startpage, cred.username_tw, cred.password_tw)
+    login(driver, startpage, username_tw, password_tw)
 
     # Iterating over the companies
     for n, row in df_source.iterrows():
