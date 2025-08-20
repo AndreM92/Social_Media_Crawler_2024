@@ -68,9 +68,6 @@ def login(driver, startpage, email, password):
             b.click()
         except:
             pass
-#       pwslot.send_keys(cred.password_tw)
-#        loginx = '//*[@id="layers"]/div/div/div/div/div/div/div[2]/div[2]/div/div/div[2]/div[2]/div[2]/div/div[1]/div/div/div/div'
-#        driver.find_element('xpath', loginx).click()
     time.sleep(2)
     try:
         driver.find_element('xpath', "//*[text()='Refuse non-essential cookies']").click()
@@ -376,7 +373,7 @@ def restart_browser(driver, webdriver, Service, chromedriver_path):
     time.sleep(3)
     driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
-    login(driver, startpage, cred.username_tw, cred.password_tw)
+    login(driver, startpage, username_tw, password_tw)
     time.sleep(3)
     return driver
 
@@ -400,7 +397,7 @@ if __name__ == '__main__':
     os.chdir(path_to_crawler_functions)
     from crawler_functions import *
     try:
-        import venv.credentials_file as cred
+        from credentials_file import *
     except:
         username_tw = input('Enter your username:')
         password_tw = input('Enter your password:')
@@ -416,7 +413,7 @@ if __name__ == '__main__':
     all_data = []
     driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
-    login(driver, startpage, cred.username_tw, cred.password_tw)
+    login(driver, startpage, username_tw, password_tw)
 
     # Iterate over the companies
     for count, row in df_source.iterrows():
