@@ -37,7 +37,8 @@ branch_keywords = ['Automatisierung', 'System', 'Technik', 'Maschine', 'Industri
 def base_url(url):
     to_remove = ['/videos', '/about', '/featured', '/playlists']
     for e in to_remove:
-        url = url.replace(e,'')
+        if e in url:
+            url = url.split(e)[0]
     if url[-1] == '/':
         url = url[:-1]
     return url
@@ -186,6 +187,8 @@ def scrapeProfile(url, comp_keywords):
     time.sleep(3)
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = extract_text(get_visible_text(Comment, soup))
+    if not pagetext or 'leider nicht verfügbar' in pagetext:
+        return [p_name, follower, total_posts, last_post, url, 'page not available']
     restricted = ['potenziell ungeeignet für', 'dass du alt genug', 'leider nicht verfügbar']
     if any(e in pagetext for e in restricted) or len(pagetext) <= 1000:
         return [p_name, follower, total_posts, last_post, url, pagetext]
@@ -263,7 +266,7 @@ if __name__ == '__main__':
         scraped_data = scrapeProfile(url, comp_keywords)
         full_row = [ID, company, dt_str] + scraped_data
         data.append(full_row)
-        print(full_row[:-1])
+        print(full_row)
 
     # DataFrame
     header = ['ID', 'company', 'date', 'profile_name', 'follower', 'all_posts', 'last_post', 'url', 'description']
