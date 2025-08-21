@@ -174,7 +174,7 @@ if __name__ == '__main__':
     for ID, row in df_source.iterrows():
         if 'ID_new' in col_names:
             ID = row['ID_new']
-        elif 'ID' in col_names and col_names.index('ID') != 0:
+        elif 'ID' in col_names:
             ID = row['ID']
         url = str(row['url'])
         p_name = str(row['profile_name'])
