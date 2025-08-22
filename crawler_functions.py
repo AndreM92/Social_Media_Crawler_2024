@@ -104,7 +104,7 @@ def go_to_page(driver, startpage):
     cookiebuttons = driver.find_elements(By.TAG_NAME, "tiktok-cookie-banner")
     if len(cookiebuttons) >= 1 or 'tiktok.com' in driver.current_url:
         import pyautogui
-        pyautogui.moveTo(1452,867)
+        pyautogui.moveTo(1749,861) #1452,867
         pyautogui.click()
         time.sleep(1)
         '''
