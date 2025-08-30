@@ -317,7 +317,7 @@ if __name__ == '__main__':
     login(driver, startpage, username_tw, password_tw)
     input('Press ENTER if the Login was successful')
 
-    old_ID = 46
+    old_ID = 0
     # Iterate over the companies
     for ID, row in df_source.iterrows():
         if 'ID_new' in col_names:
