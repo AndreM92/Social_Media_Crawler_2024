@@ -294,7 +294,7 @@ if __name__ == '__main__':
         no_p = 0
         days_delta = (last_post_dt - lower_dt).days
         scrolls = round(days_delta / 2)
-        if scrolls >= 100:
+        if scrolls < 100:
             scrolls = 100
 
         for _ in range(scrolls):
@@ -349,38 +349,3 @@ if __name__ == '__main__':
             driver.quit()
 
     driver.quit()
-########################################################################################################################
-
-'''
-c_l = []
-c_l_new = comments_scraper(c_l)
-#if len(c_l) < c_l_new:              #while
-time.sleep(3)
-for _ in range(8):         #break
-    c_l = c_l_new
-    pyautogui.moveTo(1000, 500)
-    pyautogui.scroll(-2000)
-    pyautogui.moveTo(1385, 755)
-    time.sleep(1)
-    c_l_new = comments_scraper(c_l)
-
-c_l = c_l_new
-
-row_with_comments = r + c_l
-data_per_company_completed.append(row_with_comments)
-
-all_data = []
-for d in data_per_company_completed:
-    c_row = d[:14] + ['; '.join(d[15:])]
-    all_data.append(c_row)
-    print(len(c_row))
-
-header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
-header2 = ['Likes', 'Comments', 'Shares', 'Bild', 'Video', 'Beitragsart', 'Link', 'Content', 'Sichtbare Kommentare', 'Alle Kommentare']
-dfPosts = pd.DataFrame(all_data, columns=header1 + header2)
-
-# Export dfPosts to Excel (with the current time)
-dt_str_now2 = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-file_name = 'Beiträge_Facebook_' + dt_str_now2
-dfPosts.to_excel(file_name + '.xlsx')
-'''
