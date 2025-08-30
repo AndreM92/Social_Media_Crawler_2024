@@ -270,6 +270,7 @@ if __name__ == '__main__':
     login(username_fb, password_fb, driver, pyautogui)
     time.sleep(3)
     check_for_captchas(driver, Comment)
+    input('Press ENTER if the Login was successful')
 
     start_time = time.time()
     old_ID = 0
@@ -293,6 +294,8 @@ if __name__ == '__main__':
         no_p = 0
         days_delta = (last_post_dt - lower_dt).days
         scrolls = round(days_delta / 2)
+        if scrolls >= 100:
+            scrolls = 100
 
         for _ in range(scrolls):
             len_post_list = len(data_per_company)
@@ -309,7 +312,7 @@ if __name__ == '__main__':
                 distinct_content_new = check_distinct(distinct_content, scraped_post)
                 if distinct_content_new:
                     count_p += 1
-                    full_row = [ID, p_name, count_p, dt_str] + scraped_post
+                    full_row = [ID, p_name, count_p, crawl_dt_str] + scraped_post
                     print(full_row)
                     data_per_company.append(full_row)
                     distinct_content = distinct_content_new
@@ -320,7 +323,7 @@ if __name__ == '__main__':
                 no_p += 1
             else:
                 no_p = 0
-            driver.execute_script("window.scrollBy(0, 1800);")
+            driver.execute_script("window.scrollBy(0, 1600);")
             wait_time = round(((len_post_list)*0.01)**0.5)
             time.sleep(wait_time)
 
@@ -344,8 +347,6 @@ if __name__ == '__main__':
         if time_diff >= (180 * 60):
             start_time = time.time()
             driver.quit()
-        if ID >= 3:
-            break
 
     driver.quit()
 ########################################################################################################################
