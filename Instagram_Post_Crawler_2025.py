@@ -355,10 +355,10 @@ if __name__ == '__main__':
     old_ID = 0
     # Iterate over the companies
     for ID, row in df_source.iterrows():
+        url = extract_text(row['url'])
         crawl, ID, p_name, post_url = check_conditions(ID, old_ID, row, col_names, lower_dt)
         if not crawl:
             continue
-
         data_per_company = []
         oor_posts = 0
         p_num = 0
@@ -369,7 +369,7 @@ if __name__ == '__main__':
             print(scraped_data)
             if not post_dt:
                 # Pinned posts can be out of the date range
-                if oor_posts > 5:
+                if oor_posts > 30:
                     break
                 oor_posts += 1
                 post_url = nextPost(url, driver.current_url)
