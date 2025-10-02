@@ -273,14 +273,15 @@ if __name__ == '__main__':
     input('Press ENTER if the Login was successful')
 
     start_time = time.time()
-    old_ID = 0
+    start_ID = 0
+
     # Iterate over the companies
     for ID, row in df_source.iterrows():
         if 'ID_new' in col_names:
             ID = row['ID_new']
         elif 'ID' in col_names:
             ID = row['ID']
-        if ID <= old_ID:  # If you want to skip some rows
+        if ID < start_ID:
             continue
 
         last_post_dt, p_name, url = inspect_profile(row, lower_dt)
@@ -327,7 +328,7 @@ if __name__ == '__main__':
             wait_time = round(((len_post_list)*0.01)**0.5)
             time.sleep(wait_time)
 
-        old_id = ID
+        start_ID = ID + 1
         ##### Safe #####
         all_data += data_per_company
 
