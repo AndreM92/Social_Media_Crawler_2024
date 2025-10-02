@@ -1,8 +1,13 @@
 
 import os
+import requests
 from bs4 import BeautifulSoup
 from bs4.element import Comment
-import requests
+import lxml
+import time
+import pandas as pd
+import re
+from datetime import datetime, timedelta
 
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
@@ -253,6 +258,7 @@ if __name__ == '__main__':
     all_data = []
     driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
+    start_ID = 0  # start the crawler at a specific ID
 
     # Iterate over the companies
     for ID, row in df_source.iterrows():
@@ -261,7 +267,7 @@ if __name__ == '__main__':
         elif 'ID' in col_names:
             ID = row['ID']
         url = str(row['url'])
-        go_crawl = check_conditions(ID,row,start_at=0) #Start at a higher number if you want to skip some rows
+        go_crawl = check_conditions(ID,row,start_at=start_ID)
         if not go_crawl:
             continue
 
@@ -272,7 +278,7 @@ if __name__ == '__main__':
 
         data_per_company = crawl_all_videos(dt_str, row, videolinks)
         all_data += data_per_company
-
+        start_ID = ID + 1
 
         # Create a DataFrame with all posts
         header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
