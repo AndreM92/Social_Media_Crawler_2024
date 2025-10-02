@@ -250,6 +250,7 @@ def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
         if not posts and scrolls == 0:
             crawl = False
         for p in posts:
+            break
             post_data, date_dt = post_scraper(p, p_name, lower_dt)
             if date_dt and date_dt < lower_dt:
                 if pinned_comments >= 3:
@@ -317,14 +318,14 @@ if __name__ == '__main__':
     login(driver, startpage, username_tw, password_tw)
     input('Press ENTER if the Login was successful')
 
-    old_ID = 0
+    start_ID = 0
     # Iterate over the companies
     for ID, row in df_source.iterrows():
         if 'ID_new' in col_names:
             ID = extract_number(row['ID_new'])
         elif 'ID' in col_names:
             ID = extract_number(row['ID'])
-        if ID <= old_ID:  # If you want to skip some rows
+        if ID < start_ID:  # If you want to skip some rows
             continue
         p_name, url, posts, last_post = inspect_page(ID, row, lower_dt)
         if not posts:
@@ -332,7 +333,7 @@ if __name__ == '__main__':
 
         data_per_company = page_crawler(ID, p_name, crawl_dt_str, upper_dt, lower_dt)
         all_data += data_per_company
-        old_ID = ID
+        start_ID = ID + 1
 
         # Create a DataFrame with all posts
         header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
