@@ -1,7 +1,13 @@
 
 import os
+import requests
 from bs4 import BeautifulSoup
 from bs4.element import Comment
+import lxml
+import time
+import pandas as pd
+import re
+from datetime import datetime, timedelta
 
 # Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
@@ -169,6 +175,7 @@ if __name__ == '__main__':
     driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
     first_captcha = None
+    start_ID = 0 #start the crawler at a specific ID
 
     # Iterate over the companies
     for ID, row in df_source.iterrows():
@@ -178,7 +185,7 @@ if __name__ == '__main__':
             ID = row['ID']
         url = str(row['url'])
         p_name = str(row['profile_name'])
-        go_crawl = check_conditions(ID, p_name, url, row, lower_dt, start_at=0)
+        go_crawl = check_conditions(ID, p_name, url, row, lower_dt, start_at=start_ID)
         if not go_crawl:
             continue
         if not first_captcha:
@@ -210,6 +217,7 @@ if __name__ == '__main__':
             id_p += 1
             full_row = [ID, p_name, id_p, crawl_datestr] + scraped_postdata
             data_per_company.append(full_row)
+            start_ID = ID + 1
 
         all_data += data_per_company
 
