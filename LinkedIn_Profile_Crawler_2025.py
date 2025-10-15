@@ -21,9 +21,6 @@ file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
 file_name = 'Auswahl SMP Mineralwasser_2025-10-14'
 file_type = '.xlsx'
 source_file = file_path + '/' + file_name + file_type
-branch_keywords = [
-    'Abfüll', 'Getränk', 'Lebensmittel', 'PET-', 'Flasche', 'Etikett', 'Dosier', 'Wasser', 'Mineral', 'Füllstand',
-    'Verpackung', 'Trink', 'Durst']
 ########################################################################################################################
 
 # Login function
@@ -190,8 +187,10 @@ if __name__ == '__main__':
     for ID, row in df_source.iterrows():
         if 'ID' in col_list and col_list[0] != 'ID':
             ID = int(row['ID'])
-        elif not 'nan' in str(ID):
+        if not 'nan' in str(ID):
             ID = int(ID)
+        if not str(ID).isdigit():
+            break
         if ID < start_ID:  # If you want to skip some rows
             continue
 
