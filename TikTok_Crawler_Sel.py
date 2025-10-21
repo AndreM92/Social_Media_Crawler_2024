@@ -21,10 +21,6 @@ from datetime import datetime, timedelta
 
 import os
 
-#time.sleep(3)
-x,y = (1204, 1051)
-#x,y = pyautogui.position()
-
 # Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
@@ -32,14 +28,13 @@ startpage = 'https://www.tiktok.com/'
 platform = 'TikTok'
 dt_str_now = None
 
-upper_datelimit = '2025-08-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Automatisierungstechnik 2025'
-file_name = 'Auswahl_SMP Automatisierungstechnik 2025_2025-08-06'
+upper_datelimit = '2025-10-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
+file_name = 'Auswahl SMP Mineralwasser_2025-10-14'
 file_type = '.xlsx'
 source_file = file_path + '/' + file_name + file_type
-branch_keywords = ['Automatisierung', 'System', 'Technik', 'Maschine', 'Industrie', 'Automation', 'Technologie',
-                   'Technology', 'Roboter', 'Steuerung', 'technik']
 ########################################################################################################################
+
 def check_for_captchas(soup, pagetext, link):
     if 'Puzzleteil' in pagetext or 'Verifiziere' in pagetext or 'Schieberegler' in pagetext:
         pyautogui.moveTo(x, y)
@@ -173,7 +168,7 @@ if __name__ == '__main__':
     # Export to Excel
     #    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
     dt_str_now = datetime.now().strftime("%Y-%m-%d")
-    recent_filename = 'Profile_' + platform + '_' + dt_str_now + '2.xlsx'
+    recent_filename = 'Profile_' + platform + '_' + dt_str_now + '.xlsx'
     df_profiles.to_excel(recent_filename)
 
     driver.quit()
