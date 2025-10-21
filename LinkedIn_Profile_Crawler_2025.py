@@ -41,11 +41,14 @@ def login(username, password, driver):
     time.sleep(2)
 
 def find_post_date(p):
+    post_date_dt = None
+    last_post = None
     date_elements = ['Min', 'Std', 'Tag', 'Woche', 'Monat', 'Jahr']
     span_elems = p.find_all('span')
     for e in span_elems:
         if any(d in str(e) for d in date_elements):
             date_str = get_visible_text(Comment, e)
+            print(date_str)
             if '•' in date_str:
                 date_str = date_str.split('•')[1].strip()
             try:
@@ -141,7 +144,7 @@ def scrapeProfile(company, link):
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = str(get_visible_text(Comment, soup))
     posts = soup.find_all('div', class_='ember-view occludable-update')
-    if len(posts) == 0 or "Noch keine Beiträge" in pagetext or len(pagetext) < 2200:
+    if len(posts) == 0 or not 'posts/?' in driver.current_url or "Noch keine Beiträge" in pagetext or len(pagetext) < 2200:
         last_post = 'Keine Beiträge'
         return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
 
@@ -154,6 +157,9 @@ def scrapeProfile(company, link):
                 desc1 = str(h) + '; ' + desc1
                 break
     post_date_dt, last_post = find_post_date(posts[0])
+    if not post_date_dt:
+        last_post = 'Keine Beiträge'
+        return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
     exact_follower = find_exact_follower(p)
     if exact_follower:
         follower = exact_follower
