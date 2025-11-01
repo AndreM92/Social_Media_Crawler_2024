@@ -16,13 +16,11 @@ startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 dt_str_now = None
 
-upper_datelimit = '2025-08-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Automatisierungstechnik 2025'
-file_name = 'Auswahl_SMP Automatisierungstechnik 2025_2025-08-06'
+upper_datelimit = '2025-10-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
+file_name = 'Auswahl SMP Mineralwasser_2025-10-14'
 file_type = '.xlsx'
 source_file = file_path + '/' + file_name + file_type
-branch_keywords = ['Automatisierung', 'System', 'Technik', 'Maschine', 'Industrie', 'Automation', 'Technologie',
-                   'Technology', 'Roboter', 'Steuerung', 'technik']
 ########################################################################################################################
 
 def remove_insta_cookies():
@@ -57,7 +55,6 @@ def login(username, password):
     for _ in range(7):
         time.sleep(2)
         remove_insta_cookies()
-
 
 # post_crawler functions
 def clickOnFirst(startlink):
@@ -106,7 +103,6 @@ def nextPost(url, startlink,):
             next_buttons[0].click()
             time.sleep(2)
         except:
-
             time.sleep(2)
     post_url = driver.current_url
     if post_url == startlink or post_url == url or not 'instagram.com' in post_url:
@@ -184,7 +180,6 @@ def get_commentnumber(old_comments = 0):
     if comments <= old_comments:
         return old_comments, soup
     return comments, soup
-
 
 def scrape_post(post_url, p_name, upper_dt, lower_dt):
     post_date, likes, comments, image, video, calls, content, reactions_raw = ['' for _ in range(8)]
@@ -279,8 +274,7 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
     scraped_data = [post_date, likes, comments, image, video, calls, post_url, content,reactions_raw]
     return post_dt, scraped_data
 
-
-def check_conditions(ID, old_ID, row, col_names, lower_dt):
+def check_conditions(ID, start_ID, row, col_names, lower_dt):
     p_name = extract_text(row['profile_name'])
     url = extract_text(str(row['url']))
     last_post = extract_text(row['last_post'])
@@ -288,7 +282,7 @@ def check_conditions(ID, old_ID, row, col_names, lower_dt):
         ID = row['ID_new']
     elif 'ID' in col_names:
         ID = row['ID']
-    if ID <= old_ID:
+    if ID < start_ID:
         return [False, ID, p_name, url]
     if len(url) < 10 and len(p_name) < 4:
         print([ID, url, 'no profile'])
@@ -312,7 +306,7 @@ def check_conditions(ID, old_ID, row, col_names, lower_dt):
         # Additional waiting
         time.sleep(1)
         url = clickOnFirst(driver.current_url)
-        return [True, ID, p_name, post_url]
+        return [True, ID, p_name, url]
     except:
         print([ID, url, 'no posts(4)'])
         return [False, ID, p_name, url]
@@ -336,9 +330,7 @@ if __name__ == '__main__':
         if file in f:
             file = extract_text(f)
             break
-    # If dt_str_now isn't defined by the profile crawler, set it to none
-    dt_str_now = None
-    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
+    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, None, upper_datelimit)
     col_names = list(df_source.columns)
 
     # Driver and Browser setup
@@ -352,11 +344,12 @@ if __name__ == '__main__':
 
     # Instagram will likely block your account after two hours of scraping
     start_time = time.time()
-    old_ID = 0
+    start_ID = 0
+
     # Iterate over the companies
     for ID, row in df_source.iterrows():
         url = extract_text(row['url'])
-        crawl, ID, p_name, post_url = check_conditions(ID, old_ID, row, col_names, lower_dt)
+        crawl, ID, p_name, post_url = check_conditions(ID, start_ID, row, col_names, lower_dt)
         if not crawl:
             continue
         data_per_company = []
@@ -364,6 +357,7 @@ if __name__ == '__main__':
         p_num = 0
         first_post = True
         last_post_url = ''
+
         while True:
             post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
             print(scraped_data)
@@ -372,6 +366,7 @@ if __name__ == '__main__':
                 if oor_posts > 30:
                     break
                 oor_posts += 1
+                time.sleep(3)
                 post_url = nextPost(url, driver.current_url)
                 continue
             if post_dt >= upper_dt:
@@ -386,9 +381,10 @@ if __name__ == '__main__':
                 break
             post_url = nextPost(url, driver.current_url)
             if not post_url or url in post_url or post_url == last_post_url:
-                break
+                oor_posts += 1
             last_post_url = post_url
 
+        start_ID = ID + 1
         all_data += data_per_company
 
         # Create a DataFrame with all posts
@@ -407,5 +403,6 @@ if __name__ == '__main__':
         if time_diff >= (180 * 60):
             start_time = time.time()
             driver.quit()
+
 
     driver.quit()
