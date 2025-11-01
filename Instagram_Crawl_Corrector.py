@@ -1,42 +1,21 @@
 
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
-import selenium.webdriver.support.expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
-
-import pyautogui
-# Be careful with that!
-pyautogui.FAILSAFE = False
-
-import requests
+import os
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 import lxml
 import time
-
-import numpy as np
 import pandas as pd
 import re
 from datetime import datetime, timedelta
-
-import os
 
 # Settings and paths for this program
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
-dt_str_now = None
 
-upper_datelimit = '2025-08-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Automatisierungstechnik 2025'
-file_name = 'Auswahl_SMP Automatisierungstechnik 2025_2025-08-06'
-file_type = '.xlsx'
-source_file = file_path + '/' + file_name + file_type
-branch_keywords = ['Automatisierung', 'System', 'Technik', 'Maschine', 'Industrie', 'Automation', 'Technologie',
-                   'Technology', 'Roboter', 'Steuerung', 'technik']
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
+source_file = 'Beiträge_Instagram_2025.xlsx'
 ########################################################################################################################
 
 def remove_insta_cookies():
@@ -144,54 +123,6 @@ def scrapeProfile(url, comp_keywords):
             last_dt = datetime.strptime(last_post,'%Y-%m-%d')
             last_post = last_dt.strftime('%d.%m.%Y')
     return [p_name, total_posts, follower, last_post, new_url, desc]
-########################################################################################################################
-
-# Profile crawler
-if __name__ == '__main__':
-    # Settings for profile scraping
-    os.chdir(path_to_crawler_functions)
-    from crawler_functions import *
-    import credentials_file as cred
-    os.chdir(file_path)
-    df_source, col_list, comp_header, name_header, dt, dt_str = settings(source_file)
-
-    # Start crawling
-    data = []
-    driver = start_browser(webdriver, Service, chromedriver_path)
-    go_to_page(driver, startpage)
-    login(cred.username_insta, cred.password_insta)
-
-    # Iterating over the companies
-    for ID, row in df_source.iterrows():
-        if ID <= 0:  # If you want to skip some rows
-            continue
-        company = extract_text(row[comp_header])
-        comp_keywords = get_company_keywords(company, row, col_list)
-        url = str(row[platform])
-        if len(url) < 10 or url == 'https://www.instagram.com':
-            empty_row = [ID, company, dt_str] + ['' for _ in range(6)]
-            data.append(empty_row)
-            continue
-
-        scraped_data = scrapeProfile(url, comp_keywords)
-        full_row = [ID, company, dt_str] + scraped_data
-        data.append(full_row)
-        print(full_row)
-
-
-    # DataFrame
-    header = ['ID', 'company', 'date', 'profile_name', 'all_posts', 'follower', 'last_post', 'url', 'description']
-    df_profiles = pd.DataFrame(data,columns=header)
-    df_profiles.set_index('ID')
-
-    # Export to Excel
-    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-#    dt_str_now = datetime.now().strftime("%Y-%m-%d")
-    recent_filename = 'Profile_' + platform + '_' + dt_str_now + '.xlsx'
-    df_profiles.to_excel(recent_filename)
-
-    driver.quit()
-########################################################################################################################
 
 # post_crawler functions
 def clickOnFirst(startlink):
@@ -434,133 +365,26 @@ def check_page(row):
     except:
         post_url = None
     return id, post_url, p_name
-
 ########################################################################################################################
-
-# Post Crawler
-if __name__ == '__main__':
-    # Settings for the post crawler
-    os.chdir(path_to_crawler_functions)
-    from crawler_functions import *
-    import credentials_file as cred
-    os.chdir(file_path)
-    files = os.listdir()
-    for e in files:
-        if 'Profile_Instagram_2025' in str(e):
-            file = extract_text(e)
-            break
-    # if the file cant't be found, set dt_str_now to none
-    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
-
-    # Driver and Browser setup
-    all_data = []
-    driver = start_browser(webdriver, Service, chromedriver_path)
-    go_to_page(driver, startpage)
-    login(cred.username_insta, cred.password_insta)
-    if '/auth_platform' in driver.current_url:
-        input('Press ENTER after 2FA')
-    time.sleep(3)
-
-    # Loop
-    start_time = time.time()
-    for count, row in df_source.iterrows():
-        # Instagram will block your account after one hour of scraping
-        # If needed, insert the browser close and restart function here (see below)
-        crawl = check_conditions(count,row,start_at=0)
-        if not crawl:
-            continue
-        url = extract_text(row['url'])
-        id, post_url, p_name = check_page(row)
-        if not post_url or not url:
-            print(count, [id, p_name, '', dt_str, url])
-            continue
-
-        data_per_company = []
-        oor_posts = 0
-        p_num = 0
-        first_post = True
-        last_post_url = ''
-        while True:
-            post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
-            print(scraped_data)
-            if not post_dt:
-                # Pinned posts can be out of the date range
-                if oor_posts > 2:
-                    break
-                oor_posts += 1
-                post_url = nextPost(url, driver.current_url)
-                continue
-
-            if post_dt >= upper_dt:
-                post_url = nextPost(url, post_url)
-                if not post_url:
-                    break
-                continue
-            p_num += 1
-            full_row = [id, p_name, p_num, dt_str] + scraped_data
-            data_per_company.append(full_row)
-            if p_num > 1000:
-                break
-            post_url = nextPost(url, driver.current_url)
-            if not post_url or url in post_url or post_url == last_post_url:
-                break
-            last_post_url = post_url
-
-        all_data += data_per_company
-
-        # Create a DataFrame with all posts
-        header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
-        header2 = ['Likes', 'Kommentare', 'Bild', 'Video', 'Aufrufe', 'Link', 'Content', 'Comments_Text']
-        dfPosts = pd.DataFrame(all_data, columns=header1 + header2)
-
-        # Export dfPosts to Excel (with the current time)
-        dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-        file_name = 'Beiträge_' + platform + '_' + dt_str_now + '.xlsx'
-        dfPosts.to_excel(file_name)
-
-        # Close the crawler after two hours
-        end_time = time.time()
-        time_diff = end_time - start_time
-        if time_diff >= (180 * 60):
-            start_time = time.time()
-            driver.quit()
-
-    driver.quit()
-
-########################################################################################################################
-data_per_company[-2]
-'''
-# Instagram will block your account after two hours of scraping
-# To circumvent this issue, restart your browser after 120 minutes.
-end_time = time.time()
-time_diff = end_time - start_time
-if time_diff >= (120 * 60):
-    start_time = time.time()
-    driver.quit()
-    time.sleep(5)
-    driver = start_browser(webdriver, Service, chromedriver_path)
-    go_to_page(driver, startpage)
-    login(cred.username_insta2, cred.password_insta2)
-    time.sleep(2)
-'''
 
 # Like (and comment count) correction
 if __name__ == '__main__':
-    # Adding the like count and comment count for exceptional posts
     os.chdir(path_to_crawler_functions)
     from crawler_functions import *
-    import credentials_file as cred
+    # Be careful with that!
+    pyautogui.FAILSAFE = False
+    from credentials_file import username_insta, password_insta
     os.chdir(file_path)
-    source_file = 'Beiträge_Instagram_2025_bis 31.xlsx'
     df_fillc = pd.read_excel(source_file)
 
     fill_data = []
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
-    login(cred.username_insta2, cred.password_insta2)
+    login(username_insta, password_insta)
+    input('Press ENTER if the Login was successful')
 
     corr = 0
-    for id, row in df_fillc.iterrows():
+    for ID, row in df_fillc.iterrows():
         '''
         # Restart the driver after 150 corrections
         if corr > 0 and (corr % 150 == 0 or corr % 151 == 0):
@@ -619,13 +443,11 @@ if __name__ == '__main__':
             comments = comment_crawler(driver, post_text)
             corr += 1
             comments = round(comments * 1.3)
-        fill_data.append([id, row['ID_A'], likes, comments])
+        fill_data.append([ID, row['ID_A'], likes, comments])
 
-
-    df_filled = pd.DataFrame(fill_data, columns=['id','ID_A', 'Likes', 'Kommentare'])
+    df_filled = pd.DataFrame(fill_data, columns=['ID','ID_A', 'Likes', 'Kommentare'])
     df_filled.to_excel('filled_Likes_comments.xlsx')
     print('Done')
     driver.quit()
-
 
 #currentMouseX, currentMouseY = pyautogui.position()
