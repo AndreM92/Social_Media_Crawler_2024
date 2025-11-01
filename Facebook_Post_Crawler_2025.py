@@ -16,13 +16,11 @@ startpage = 'https://www.facebook.com/'
 platform = 'Facebook'
 dt_str_now = None
 
-upper_datelimit = '2025-08-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Automatisierungstechnik 2025'
-file_name = 'Auswahl_SMP Automatisierungstechnik 2025_2025-08-06'
+upper_datelimit = '2025-10-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
+file_name = 'Auswahl SMP Mineralwasser_2025-10-14'
 file_type = '.xlsx'
 source_file = file_path + '/' + file_name + file_type
-branch_keywords = ['Automatisierung', 'System', 'Technik', 'Maschine', 'Industrie', 'Automation', 'Technologie',
-                   'Technology', 'Roboter', 'Steuerung', 'technik']
 ########################################################################################################################
 # Facebook Login function
 def login(useremail, password, driver, pyautogui):
