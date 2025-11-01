@@ -9,19 +9,18 @@ import pandas as pd
 import re
 from datetime import datetime, timedelta
 
+# Settings
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
 startpage = 'https://www.youtube.com/'
 platform = 'YouTube'
 dt_str_now = None
 
-upper_datelimit = '2025-08-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Automatisierungstechnik 2025'
-file_name = 'Auswahl_SMP Automatisierungstechnik 2025_2025-08-06'
+upper_datelimit = '2025-10-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
+file_name = 'Auswahl SMP Mineralwasser_2025-10-14'
 file_type = '.xlsx'
 source_file = file_path + '/' + file_name + file_type
-branch_keywords = ['Automatisierung', 'System', 'Technik', 'Maschine', 'Industrie', 'Automation', 'Technologie',
-                   'Technology', 'Roboter', 'Steuerung', 'technik']
 ########################################################################################################################
 
 def open_and_check_page(link):
@@ -248,7 +247,6 @@ if __name__ == '__main__':
     # Settings for the post crawler
     os.chdir(path_to_crawler_functions)
     from crawler_functions import *
-    import credentials_file as cred
     os.chdir(file_path)
     file ='Profile_' + platform + '_2025'
     df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
