@@ -1,6 +1,5 @@
 
 import os
-import requests
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 import lxml
@@ -14,14 +13,11 @@ chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromed
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
 startpage = 'https://www.facebook.com/'
 platform = 'Facebook'
-dt_str_now = None
 
 upper_datelimit = '2025-10-01'
 file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
-file_name = 'Auswahl SMP Mineralwasser_2025-10-14'
-file_type = '.xlsx'
-source_file = file_path + '/' + file_name + file_type
 ########################################################################################################################
+
 # Facebook Login function
 def login(useremail, password, driver, pyautogui):
     try:
@@ -248,7 +244,7 @@ if __name__ == '__main__':
     os.chdir(path_to_crawler_functions)
     from crawler_functions import *
     try:
-        from credentials_file import *
+        from credentials_file import username_fb, password_fb
     except:
         username_fb = str(input('Enter your username:')).strip()
         password_fb = str(input('Enter your password:')).strip()
@@ -258,7 +254,7 @@ if __name__ == '__main__':
         if file in f:
             file = extract_text(f)
             break
-    df_source, dt, crawl_dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
+    df_source, dt, crawl_dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, None, upper_datelimit)
     col_names = list(df_source.columns)
 
     # Driver and Browser setup
