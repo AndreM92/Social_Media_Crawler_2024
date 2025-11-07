@@ -18,9 +18,6 @@ dt_str_now = None
 
 upper_datelimit = '2025-10-01'
 file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
-file_name = 'Auswahl SMP Mineralwasser_2025-10-14'
-file_type = '.xlsx'
-source_file = file_path + '/' + file_name + file_type
 ########################################################################################################################
 
 def open_and_check_page(link):
@@ -55,17 +52,12 @@ def open_description(driver):
 
 def get_likes(soup):
     likes = ''
-    like_elem = soup.find('like-button-view-model')
-    if like_elem:
-        likes = extract_every_number((extract_text(like_elem)))
-        if not like_elem or 'Mag' in str(likes):
-            like_elem = soup.find('button', {'aria-label': lambda x: x and 'mag das Video' in x})
-            if like_elem:
-                like_text = extract_text(like_elem['aria-label'])
-                if 'mag' in like_text.lower():
-                    likes = extract_number(like_text)
-    if likes == 'Mag ich':
-        likes = ''
+    likes_text = extract_text(soup.find('like-button-view-model'))
+    if not likes_text:
+        like_elem = soup.find('button', {'aria-label': lambda x: x and 'mag das Video' in x})
+        likes_text = extract_text(like_elem['aria-label'])
+    if likes_text:
+        likes = extract_number(likes_text)
     return likes
 
 def get_video_title(soup):
@@ -194,8 +186,8 @@ def getVideolinks(url):
 #    print(f'Anzahl der Videolinks: {len(videolinks)}')
     return videolinks
 
-def check_conditions(count, row, start_at=0):
-    if count < start_at:      # If you want to skip some rows
+def check_conditions(ID, row, start_at=0):
+    if ID < start_at:      # If you want to skip some rows
         return False
     p_name = str(row['profile_name'])
     url = str(row['url'])
@@ -206,7 +198,7 @@ def check_conditions(count, row, start_at=0):
     if not isinstance(date_element, datetime):
         last_datestr = extract_text(date_element)
         if not last_datestr or len(url) < 10 or len(last_post) <= 4 or 'Keine Beiträge' in last_post:
-            print([id, url, 'no posts'])
+            print([ID, url, 'no posts'])
             return False
         try:
             date_element = datetime.strptime(last_datestr, "%d.%m.%Y")
@@ -217,7 +209,7 @@ def check_conditions(count, row, start_at=0):
     return False
 
 def crawl_all_videos(dt_str, row, videolinks):
-    id = str(row['ID'])
+    ID = str(row['ID'])
     p_name = str(row['profile_name'])
     data_per_company = []
     id_p = 0
@@ -235,7 +227,7 @@ def crawl_all_videos(dt_str, row, videolinks):
         except:
             pass
         id_p += 1
-        full_row = [id, p_name, id_p, dt_str] + scraped_data
+        full_row = [ID, p_name, id_p, dt_str] + scraped_data
         data_per_company.append(full_row)
         print(full_row)
     return data_per_company
