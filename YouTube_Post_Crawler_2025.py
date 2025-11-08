@@ -14,7 +14,6 @@ chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromed
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
 startpage = 'https://www.youtube.com/'
 platform = 'YouTube'
-dt_str_now = None
 
 upper_datelimit = '2025-10-01'
 file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
@@ -54,8 +53,9 @@ def get_likes(soup):
     likes = ''
     likes_text = extract_text(soup.find('like-button-view-model'))
     if not likes_text:
-        like_elem = soup.find('button', {'aria-label': lambda x: x and 'mag das Video' in x})
-        likes_text = extract_text(like_elem['aria-label'])
+        likes_elem = soup.find('button', {'aria-label': lambda x: x and 'mag das Video' in x})
+        if likes_elem:
+            likes_text = extract_text(likes_elem['aria-label'])
     if likes_text:
         likes = extract_number(likes_text)
     return likes
@@ -241,7 +241,7 @@ if __name__ == '__main__':
     from crawler_functions import *
     os.chdir(file_path)
     file ='Profile_' + platform + '_2025'
-    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
+    df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, None, upper_datelimit)
     col_names = list(df_source.columns)
 
     # Driver and Browser setup
