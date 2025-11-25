@@ -105,6 +105,33 @@ def nextPost(url, startlink,):
         post_url = None
     return post_url
 
+def get_commentnumber(old_comments = 0):
+    pyautogui.moveTo(1475, 330)
+    scrolls = round(old_comments/100) + 5
+    for _ in range(scrolls):
+        pyautogui.scroll(-1500)
+        time.sleep(0.5 + round(scrolls/3))
+    pyautogui.moveTo(1900, 225)
+    for _ in range(3):
+        pyautogui.scroll(1000)
+    pyautogui.moveTo(1385,755)
+    soup = BeautifulSoup(driver.page_source,'lxml')
+    comments = len(soup.find_all('ul', class_='_a9ym'))
+    if comments == 0:
+        comments_elem = soup.find('div', class_='x78zum5 xdt5ytf x1iyjqo2')
+        if comments_elem:
+            comments = len(comments_elem)
+            if comments >= 1:
+                comments = comments - 1
+    if comments == 0:
+        comments = len(soup.find_all('span',class_='_ap3a _aaco _aacw _aacx _aad7 _aade'))
+        if comments >= 1:
+            comments -= 1
+    if comments <= old_comments:
+        return old_comments, soup
+    return comments, soup
+
+# Clicking with pyautogui led to many errors so I will scrape the correct higher comment counts later (with the post links)
 def comment_crawler(driver, post_text):
     orig_page = driver.current_url
     if 'keine kommentare' in post_text.lower():
@@ -114,7 +141,7 @@ def comment_crawler(driver, post_text):
         return comments
     time.sleep(1)
     no_more_comments = 0
-    for i in range(100):
+    for i in range(500):
         soup_buttons = soup.find_all('div',class_='_abm0')
         button = False
         for pos, b in enumerate(soup_buttons):
@@ -138,44 +165,14 @@ def comment_crawler(driver, post_text):
         comments,soup = get_commentnumber(old_comments)
         if old_comments == comments:
             no_more_comments += 1
-        if no_more_comments > 3:
+        if no_more_comments >= 3:
             break
         # If there are too much comments, scrape them later
-        if comments >= 200:
-            comments = 200
+        if comments >= 500:
+            comments = 500
             break
-        time.sleep(1)
     return comments
 
-# Clicking with pyautogui led to many errors so I will scrape the correct higher comment counts later (with the post links)
-def get_commentnumber(old_comments = 0):
-    pyautogui.moveTo(1475, 330)
-    for _ in range(2):
-        pyautogui.scroll(-1500)
-    pyautogui.moveTo(1385,755)
-    time.sleep(1)
-    soup = BeautifulSoup(driver.page_source,'lxml')
-    comments = len(soup.find_all('ul', class_='_a9ym'))
-    if comments == 0:
-        comments_elem = soup.find('div', class_='x78zum5 xdt5ytf x1iyjqo2')
-        if comments_elem:
-            comments = len(comments_elem)
-    if comments == 0:
-        comments_elem = soup.find_all('span',class_='_ap3a _aaco _aacw _aacx _aad7 _aade')
-        comments = len(comments_elem)
-        if comments >= 1:
-            comments -= 1
-    if comments > 0:
-        soup = BeautifulSoup(driver.page_source, 'lxml')
-        answer_elems = soup.find_all('span')
-        for a in answer_elems:
-            a_text = extract_text(a)
-            if 'Antworten ansehen' in a_text:
-                a_number = extract_number(a_text)
-                comments = comments + a_number
-    if comments <= old_comments:
-        return old_comments, soup
-    return comments, soup
 
 def scrape_post(post_url, p_name, upper_dt, lower_dt):
     post_date, likes, comments, image, video, calls, content, reactions_raw = ['' for _ in range(8)]
@@ -340,7 +337,7 @@ if __name__ == '__main__':
 
     # Instagram will likely block your account after two hours of scraping
     start_time = time.time()
-    start_ID = 0
+    start_ID = 73
 
     # Iterate over the companies
     for ID, row in df_source.iterrows():
