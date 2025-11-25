@@ -1,5 +1,7 @@
 
 import os
+
+import pyautogui
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 import lxml
@@ -15,7 +17,7 @@ startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 
 file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
-source_file = 'Beiträge_Instagram_2025.xlsx'
+source_file = 'Beiträge_Instagram_2025-11-23' +'.xlsx'
 ########################################################################################################################
 
 def remove_insta_cookies():
@@ -178,52 +180,17 @@ def nextPost(url, startlink,):
         post_url == None
     return post_url
 
-def comment_crawler(driver, post_text):
-    orig_page = driver.current_url
-    if 'keine kommentare' in post_text.lower():
-        return 0
-    comments, soup = get_commentnumber()
-    if comments <= 5:
-        return comments
-    time.sleep(1)
-    for i in range(100):
-        soup_buttons = soup.find_all('div',class_='_abm0')
-        button = False
-        for pos, b in enumerate(soup_buttons):
-            if 'Weitere Kommentare laden' in str(b) or 'Load more comments' in str(b):
-                button = pos
-                break
-        if button:
-            buttons = driver.find_elements(By.CLASS_NAME,'_abm0')
-            try:
-                buttons[button].click()
-                time.sleep(1)
-                if i >= 20:
-                    time.sleep(1)
-                if i >= 40:
-                    time.sleep(1)
-            except:
-                pass
-        if orig_page != driver.current_url:
-            driver.get(orig_page)
-            break
-        old_comments = comments
-        comments,soup = get_commentnumber(old_comments)
-        if old_comments == comments:
-            break
-        # If there are too much comments, scrape them later
-        if comments >= 200:
-            comments = 200
-            break
-    return comments
 
-# Clicking with pyautogui led to many errors so I will scrape the correct higher comment counts later (with the post links)
 def get_commentnumber(old_comments = 0):
     pyautogui.moveTo(1475, 330)
-    for _ in range(2):
+    scrolls = round(old_comments/100) + 5
+    for _ in range(scrolls):
         pyautogui.scroll(-1500)
+        time.sleep(0.5 + round(scrolls/3))
+    pyautogui.moveTo(1900, 225)
+    for _ in range(3):
+        pyautogui.scroll(1000)
     pyautogui.moveTo(1385,755)
-    time.sleep(1)
     soup = BeautifulSoup(driver.page_source,'lxml')
     comments = len(soup.find_all('ul', class_='_a9ym'))
     if comments == 0:
@@ -239,6 +206,44 @@ def get_commentnumber(old_comments = 0):
     if comments <= old_comments:
         return old_comments, soup
     return comments, soup
+
+
+def comment_crawler(driver, post_text):
+    orig_page = driver.current_url
+    if 'keine kommentare' in post_text.lower():
+        return 0
+    comments, soup = get_commentnumber()
+    if comments <= 5:
+        return comments
+    time.sleep(1)
+    no_more_comments = 0
+    for i in range(500):
+        soup_buttons = soup.find_all('div',class_='_abm0')
+        button = False
+        for pos, b in enumerate(soup_buttons):
+            if 'Weitere Kommentare laden' in str(b) or 'Load more comments' in str(b):
+                button = pos
+                break
+        if button:
+            buttons = driver.find_elements(By.CLASS_NAME,'_abm0')
+            try:
+                buttons[button].click()
+                if i >= 20:
+                    time.sleep(1)
+                if i >= 40:
+                    time.sleep(1)
+            except:
+                pass
+        if orig_page != driver.current_url:
+            driver.get(orig_page)
+            break
+        old_comments = comments
+        comments,soup = get_commentnumber(old_comments)
+        if old_comments == comments:
+            no_more_comments += 1
+        if no_more_comments >= 3:
+            break
+    return comments
 
 
 def scrape_post(post_url, p_name, upper_dt, lower_dt):
@@ -329,8 +334,7 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
             reactions_raw = post_text.split(content[-10:])[-1].split('Weitere Beiträge')[0]
     # Not all comments are shown, so I have to estimate the real number:
     if comments and 200 > comments > 14 :
-        comments = round(comments * 1.2)
-
+        comments = round(comments * 1.1)
     scraped_data = [post_date, likes, comments, image, video, calls, post_url, content,reactions_raw]
     return post_dt, scraped_data
 
@@ -423,7 +427,7 @@ if __name__ == '__main__':
                     likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
             corr += 1
 #        if comments >= 20000:
-        if ((not comments and not '0' in str(comments)) or str(comments) == 'nan' or str(comments) == '' or comments == 200): #or comments >= 200
+        if ((not comments and not '0' in str(comments)) or str(comments) == 'nan' or str(comments) == '' or comments >= 200):
             try:
                 driver.get(row['Link'])
                 WebDriverWait(driver, 7).until(
@@ -442,11 +446,12 @@ if __name__ == '__main__':
             post_text = get_visible_text(Comment, soup)
             comments = comment_crawler(driver, post_text)
             corr += 1
-            comments = round(comments * 1.3)
         fill_data.append([ID, row['ID_A'], likes, comments])
 
     df_filled = pd.DataFrame(fill_data, columns=['ID','ID_A', 'Likes', 'Kommentare'])
-    df_filled.to_excel('filled_Likes_comments.xlsx')
+    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+    new_filename = 'filled_Likes_comments_' + dt_str_now + '.xlsx'
+    df_filled.to_excel(new_filename)
     print('Done')
     driver.quit()
 
