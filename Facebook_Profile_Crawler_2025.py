@@ -1,35 +1,25 @@
 
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
-import selenium.webdriver.support.expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
-
+import os
 import requests
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 import lxml
 import time
-
-import numpy as np
 import pandas as pd
 import re
 from datetime import datetime, timedelta
 
-import os
 # Settings
 chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
 startpage = 'https://www.facebook.com/'
 platform = 'Facebook'
-dt_str_now = None
 
-upper_datelimit = '2025-10-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
-file_name = 'Auswahl SMP Mineralwasser_2025-10-14'
-file_type = '.xlsx'
-source_file = file_path + '/' + file_name + file_type
+upper_datelimit = '2025-12-01'
+folder_name = "SMP_Glücksspiel_2025"
+file_name = "Auswahl SMP Glücksspiel_2025-12-01"
+file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
+source_file = file_name + ".xlsx"
 ########################################################################################################################
 
 # Facebook Login function
@@ -156,10 +146,6 @@ def scrapeProfile(url, take_screenshot):
     else:
         driver.execute_script("window.scrollBy(0, 300);")
     time.sleep(1)
-    if take_screenshot:
-        scr_text = get_text_from_screenshot(driver, p_name)
-        if len(posts) >= 1:
-            last_post = date_hint(scr_text)
     if not last_post:
         date_text = pagetext.rsplit('Facebook')[-1].strip()
         if len(date_text) < 50:
@@ -170,12 +156,17 @@ def scrapeProfile(url, take_screenshot):
         soup = BeautifulSoup(driver.page_source, 'lxml')
         pagetext = get_visible_text(Comment, soup)
         last_post = date_hint(date_text)
-    raw_desc_elements = soup.find_all('div',class_='x1yztbdb')
+    if not last_post and take_screenshot:
+        scr_text = get_text_from_screenshot(driver, p_name)
+        if len(posts) >= 1:
+            last_post = date_hint(scr_text)
+    #raw_desc_elements = soup.find_all('div',class_='x1yztbdb')
+    raw_desc_elements = soup.find_all('div', class_='xieb3on')
     if len(raw_desc_elements) >= 1:
         for e in raw_desc_elements:
             raw_desc = get_visible_text(Comment, e)
             if len(raw_desc) >= 31:
-                if "Intro" in raw_desc[:30] or 'Steckbrief' in raw_desc[30] or 'Beschreibung' in raw_desc[30]:
+                if "Intro" in raw_desc[:30] or 'Steckbrief' in raw_desc[30] or 'Beschreibung' in raw_desc[30] or len(raw_desc) > 30:
                     break
     if not raw_desc:
         try:
@@ -228,9 +219,13 @@ if __name__ == '__main__':
         if 'ID' in col_list and col_list[0] != 'ID':
             ID = int(row['ID'])
         elif not 'nan' in str(ID):
-            ID = int(ID)
-        if ID < start_ID:  # If you want to skip some rows
-            continue
+            try:
+                ID = int(ID)
+                if ID < start_ID:  # If you want to skip some rows
+                    continue
+                start_ID = ID + 1
+            except:
+                ID = str(ID)
 
         company = extract_text(row[comp_header])
         comp_keywords = get_company_keywords(company, row, col_list)
@@ -242,10 +237,9 @@ if __name__ == '__main__':
             continue
         # Correct the url
         url = url.split('/followers')[0].split('/impressu')[0].split('locale=')[0]
-        scraped_data = scrapeProfile(url, take_screenshot = False)
+        scraped_data = scrapeProfile(url, take_screenshot = True)
         full_row = [ID, company, dt_str] + scraped_data
         data.append(full_row)
-        start_ID = ID + 1
         print(full_row)
 
 
