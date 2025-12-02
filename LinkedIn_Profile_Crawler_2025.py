@@ -14,13 +14,12 @@ chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromed
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
 startpage = 'https://www.linkedin.com/login/de'
 platform = 'LinkedIn'
-dt_str_now = None
 
-upper_datelimit = '2025-10-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
-file_name = 'Auswahl SMP Mineralwasser_2025-10-14'
-file_type = '.xlsx'
-source_file = file_path + '/' + file_name + file_type
+upper_datelimit = '2025-12-01'
+folder_name = "SMP_Glücksspiel_2025"
+file_name = "Auswahl SMP Glücksspiel_2025-12-01"
+file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
+source_file = file_name + ".xlsx"
 ########################################################################################################################
 
 # Login function
@@ -48,7 +47,6 @@ def find_post_date(p):
     for e in span_elems:
         if any(d in str(e) for d in date_elements):
             date_str = get_visible_text(Comment, e)
-            print(date_str)
             if '•' in date_str:
                 date_str = date_str.split('•')[1].strip()
             try:
