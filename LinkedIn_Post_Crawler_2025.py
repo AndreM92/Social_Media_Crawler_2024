@@ -15,9 +15,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.linkedin.com/login/de'
 platform = 'LinkedIn'
 
-upper_datelimit = '2025-10-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
-file_name = 'Auswahl SMP Mineralwasser_2025-10-14'
+upper_datelimit = '2025-12-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Glücksspiel_2025'
+file_name = 'Auswahl SMP Glücksspiel_2025-12-01'
 file_type = '.xlsx'
 source_file = file_path + '/' + file_name + file_type
 ########################################################################################################################
