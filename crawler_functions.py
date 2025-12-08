@@ -243,21 +243,14 @@ def get_company_keywords(company, row, col_list):
     appendix = ['gmbh', 'mbh', 'inc', 'limited', 'ltd', 'llc', 'co.', 'lda', 'a.s.', 'S.A.', ' OG', ' AG', ' SE', 'GmbH & Co. KG', 'GmbH', 'B.V.', 'KG', 'LLC', 'NV', 'N.V.',
             '& Co.', 'S.L.U.', '(', ')', '.de', '.com', '.at', 'oHG', 'Ltd.', 'Limited']
     comp_keywords = [e for e in comp_keywords_f if not any(a in e for a in appendix)] + [company]
-    web_name, name = None, None
-    appendix = ['gmbh', 'mbh', 'inc', 'limited', 'ltd', 'llc', 'co.', 'lda', 'a.s.', 'S.A.', ' OG', ' AG', ' SE',
-                'GmbH & Co. KG', 'GmbH', 'B.V.', 'KG', 'LLC', 'NV', 'N.V.',
-                '& Co.', 'S.L.U.', '(', ')', '.de', '.com', '.at', 'oHG', 'Ltd.', 'Limited']
-    comp_keywords = [e for e in comp_keywords_f if not any(a in e for a in appendix)] + [company]
-    web_name, name = None, None
     for e in col_list:
         web_name = None
         el = e.lower()
-        if 'name ' in el and not name:
-            name = extract_text(row[e])
-            comp_keywords.append(name)
+        if 'name ' in el and not web_name:
+            web_name = extract_text(row[e])
+            comp_keywords.append(web_name)
         elif 'webs' in el:
             col_val = str(extract_text(row[e]))
-            break
             if len(col_val) >= 4:
                 if '//' in col_val:
                     col_val = str(col_val).split('//', 1)[1]
