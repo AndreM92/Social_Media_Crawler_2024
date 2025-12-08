@@ -159,7 +159,9 @@ cython_debug/
 #.idea/
 
 # Side projects
-Facebook_Profile_Crawler_2025.py
 pages.txt
 results/
 LinkedIn_post_Crawler_PW_sync.py
+Facebook_Crawler_Sel.py
+Facebook_Crawler_Sel_2025.py
+LinkedIn_Crawler_Sel.py
