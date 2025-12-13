@@ -13,15 +13,9 @@ chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromed
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
 startpage = 'https://x.com/i/flow/login'
 platform = 'X'
-dt_str_now = None
 
-upper_datelimit = '2025-08-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Automatisierungstechnik 2025'
-file_name = 'Auswahl_SMP Automatisierungstechnik 2025_2025-08-06'
-file_type = '.xlsx'
-source_file = file_path + '/' + file_name + file_type
-branch_keywords = ['Automatisierung', 'System', 'Technik', 'Maschine', 'Industrie', 'Automation', 'Technologie',
-                   'Technology', 'Roboter', 'Steuerung', 'technik']
+upper_datelimit = '2025-12-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Glücksspiel_2025'
 ########################################################################################################################
 
 # Login function
@@ -200,8 +194,8 @@ def post_scraper(p, p_name, lower_dt):
     if 'retweet' in full_text.lower() or 'repost' in full_text:
         tweet_type = 'retweet'
     ns = re.sub(r'[.-_]', '', p_name).strip().lower()
-    if not (ns[:3] in full_text[:50].lower() or ns[-4:] in full_text[:50].lower()):
-        tweet_type = 'ad'
+#    if not (ns[:3] in full_text[:50].lower() or ns[-4:] in full_text[:50].lower()):
+#        tweet_type = 'ad'
     p_name2 = p_name
     if '·' in full_text:
         p_name2 = full_text[:50].split('·')[0].split('@')[0].strip()
@@ -235,7 +229,7 @@ def scroller(scrolls, height2):
     return False, scrolls, height2
 
 # Crawler function for the whole profile (scrolls down and scrapes the post data)
-def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
+def page_crawler(ID, p_name, dt_str, upper_dt, lower_dt):
     crawl = True
     distinct_posts = []
     distinct_linklist = []
@@ -250,7 +244,6 @@ def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
         if not posts and scrolls == 0:
             crawl = False
         for p in posts:
-            break
             post_data, date_dt = post_scraper(p, p_name, lower_dt)
             if date_dt and date_dt < lower_dt:
                 if pinned_comments >= 3:
@@ -263,10 +256,10 @@ def page_crawler(id, p_name, dt_str, upper_dt, lower_dt):
             if link in distinct_linklist:
                 continue
             if post_data[1] == 'ad':
-                full_row = [id, p_name, id_ad, dt_str] + post_data
+                full_row = [ID, p_name, id_ad, dt_str] + post_data
                 id_ad += 1
             else:
-                full_row = [id, p_name, id_p, dt_str] + post_data
+                full_row = [ID, p_name, id_p, dt_str] + post_data
                 id_p += 1
             print(full_row)
             distinct_linklist.append(link)
@@ -308,7 +301,7 @@ if __name__ == '__main__':
         if file in f:
             file = extract_text(f)
             break
-    df_source, dt, crawl_dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, dt_str_now, upper_datelimit)
+    df_source, dt, crawl_dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, None, upper_datelimit)
     col_names = list(df_source.columns)
 
     # Driver and Browser setup
@@ -316,7 +309,7 @@ if __name__ == '__main__':
     driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
     login(driver, startpage, username_tw, password_tw)
-    input('Press ENTER if the Login was successful')
+    input('Change your password and log in manually')
 
     start_ID = 0
     # Iterate over the companies
