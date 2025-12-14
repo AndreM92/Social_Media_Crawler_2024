@@ -15,8 +15,8 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 
-upper_datelimit = '2025-10-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
+upper_datelimit = '2025-12-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Glücksspiel_2025'
 ########################################################################################################################
 
 def remove_insta_cookies():
@@ -39,7 +39,7 @@ def login(username, password):
     nameslot.clear()
     # Typing char for char to simulate a human like behavior
     # classic and global version:
-    # nameslot.send_keys(cred.username_insta)
+    # nameslot.send_keys(username_insta)
     for char in username:
         nameslot.send_keys(char)
         time.sleep(.1)
@@ -107,10 +107,10 @@ def nextPost(url, startlink,):
 
 def get_commentnumber(old_comments = 0):
     pyautogui.moveTo(1475, 330)
-    scrolls = round(old_comments/100) + 5
-    for _ in range(scrolls):
+    rounds = round(old_comments/50) + 5
+    for _ in range(rounds):
         pyautogui.scroll(-1500)
-        time.sleep(0.5 + round(scrolls/3))
+        time.sleep(0.5)
     pyautogui.moveTo(1900, 225)
     for _ in range(3):
         pyautogui.scroll(1000)
@@ -139,7 +139,6 @@ def comment_crawler(driver, post_text):
     comments, soup = get_commentnumber()
     if comments <= 5:
         return comments
-    time.sleep(1)
     no_more_comments = 0
     for i in range(500):
         soup_buttons = soup.find_all('div',class_='_abm0')
@@ -152,9 +151,9 @@ def comment_crawler(driver, post_text):
             buttons = driver.find_elements(By.CLASS_NAME,'_abm0')
             try:
                 buttons[button].click()
-                if i >= 20:
+                if i >= 500:
                     time.sleep(1)
-                if i >= 40:
+                if i >= 100:
                     time.sleep(1)
             except:
                 pass
@@ -330,14 +329,17 @@ if __name__ == '__main__':
     all_data = []
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
-    login(username_insta, password_insta)
+    try:
+        login(username_insta, password_insta)
+    except:
+        input('log in manually')
     if '/auth_platform' in driver.current_url:
         input('Press ENTER after 2FA')
     input('Press ENTER if the Login was successful')
 
     # Instagram will likely block your account after two hours of scraping
     start_time = time.time()
-    start_ID = 73
+    start_ID = 0
 
     # Iterate over the companies
     for ID, row in df_source.iterrows():
@@ -350,7 +352,6 @@ if __name__ == '__main__':
         p_num = 0
         first_post = True
         last_post_url = ''
-
         while True:
             post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
             print(scraped_data)
@@ -396,6 +397,5 @@ if __name__ == '__main__':
         if time_diff >= (180 * 60):
             start_time = time.time()
             driver.quit()
-
 
     driver.quit()
