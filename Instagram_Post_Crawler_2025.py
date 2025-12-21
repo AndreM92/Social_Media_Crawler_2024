@@ -110,7 +110,7 @@ def get_commentnumber(old_comments = 0):
     rounds = round(old_comments/50) + 5
     for _ in range(rounds):
         pyautogui.scroll(-1500)
-        time.sleep(0.5)
+        time.sleep(0.25)
     pyautogui.moveTo(1900, 225)
     for _ in range(3):
         pyautogui.scroll(1000)
@@ -347,36 +347,48 @@ if __name__ == '__main__':
         crawl, ID, p_name, post_url = check_conditions(ID, start_ID, row, col_names, lower_dt)
         if not crawl:
             continue
+
         data_per_company = []
         oor_posts = 0
         p_num = 0
-        first_post = True
+        second_round = 0
         last_post_url = ''
+        content_list = []
         while True:
+            if p_num > 1000 or oor_posts > 40:
+                break
             post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
-            print(scraped_data)
-            if not post_dt:
+            if not post_dt or not scraped_data:
                 # Pinned posts can be out of the date range
-                if oor_posts > 30:
-                    break
                 oor_posts += 1
-                time.sleep(3)
+                time.sleep(1)
                 post_url = nextPost(url, driver.current_url)
                 continue
             if post_dt >= upper_dt:
+                oor_posts += 1
                 post_url = nextPost(url, post_url)
                 if not post_url:
                     break
                 continue
+            post_content = scraped_data[7]
+            if not post_url or url in post_url or post_content in content_list or post_url == last_post_url:
+                time.sleep(1)
+                post_url = nextPost(url, driver.current_url)
+                second_round += 1
+                if second_round >= 2:
+                    oor_posts += 1
+                    print('no next button')
+                    second_round = 0
+                continue
             p_num += 1
             full_row = [ID, p_name, p_num, dt_str] + scraped_data
             data_per_company.append(full_row)
-            if p_num > 1000:
-                break
-            post_url = nextPost(url, driver.current_url)
-            if not post_url or url in post_url or post_url == last_post_url:
-                oor_posts += 1
             last_post_url = post_url
+            if len(post_content) >= 100:
+                post_content = post_content[:100]
+            content_list.append(post_content)
+            print(scraped_data)
+            post_url = nextPost(url, driver.current_url)
 
         start_ID = ID + 1
         all_data += data_per_company
