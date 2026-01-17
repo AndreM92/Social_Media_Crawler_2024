@@ -88,7 +88,7 @@ def nextPost(url, startlink,):
             current_post = driver.current_url
             pyautogui.moveTo(1869, 595)
             pyautogui.click()
-            time.sleep(1)
+            time.sleep(0.5)
             if url == driver.current_url:
                 driver.get(current_post)
                 time.sleep(2)
@@ -97,9 +97,9 @@ def nextPost(url, startlink,):
     if len(next_buttons) >= 1:
         try:
             next_buttons[0].click()
-            time.sleep(2)
+            time.sleep(0.5)
         except:
-            time.sleep(2)
+            time.sleep(0.5)
     post_url = driver.current_url
     if post_url == startlink or post_url == url or not 'instagram.com' in post_url:
         post_url = None
@@ -317,7 +317,7 @@ if __name__ == '__main__':
         username_insta = str(input('Enter your username:')).strip()
         password_insta = str(input('Enter your password:')).strip()
     os.chdir(file_path)
-    file ='Profile_' + platform + '_' + str(datetime.now().year)
+    file ='Profile_' + platform + '_' + str(datetime.now().year-1)
     for f in os.listdir():
         if file in f:
             file = extract_text(f)
@@ -351,16 +351,20 @@ if __name__ == '__main__':
         data_per_company = []
         oor_posts = 0
         p_num = 0
+        counter = 0
         second_round = 0
         last_post_url = ''
         content_list = []
         while True:
-            if p_num > 1000 or oor_posts > 40:
+            counter += 1
+            if counter > 3000 or oor_posts > 200:
                 break
             post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
             if not post_dt or not scraped_data:
                 # Pinned posts can be out of the date range
                 oor_posts += 1
+                if counter > 300 and len(data_per_company) > 20:
+                    break
                 time.sleep(1)
                 post_url = nextPost(url, driver.current_url)
                 continue
@@ -390,7 +394,8 @@ if __name__ == '__main__':
             print(scraped_data)
             post_url = nextPost(url, driver.current_url)
 
-        start_ID = ID + 1
+
+        # start_ID = ID + 1
         all_data += data_per_company
 
         # Create a DataFrame with all posts
