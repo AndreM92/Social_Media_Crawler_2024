@@ -237,8 +237,10 @@ def page_crawler(ID, p_name, dt_str, upper_dt, lower_dt):
     id_ad = 0
     scrolls = 0
     height2 = False
-    pinned_comments = 0
+    pinned_posts = 0
+    stopped_time = datetime.now()
     while crawl:
+        len_distinct_posts = len(distinct_posts)
         soup = BeautifulSoup(driver.page_source, 'lxml')
         posts = soup.find_all('article')
         if not posts and scrolls == 0:
@@ -246,10 +248,10 @@ def page_crawler(ID, p_name, dt_str, upper_dt, lower_dt):
         for p in posts:
             post_data, date_dt = post_scraper(p, p_name, lower_dt)
             if date_dt and date_dt < lower_dt:
-                if pinned_comments >= 3:
+                if pinned_posts >= 5:
                     crawl = False
                     break
-                pinned_comments += 1
+                pinned_posts += 1
             if not post_data or not date_dt or date_dt >= upper_dt:
                 continue
             link = post_data[-2]
@@ -267,9 +269,12 @@ def page_crawler(ID, p_name, dt_str, upper_dt, lower_dt):
         stopped, scrolls, height2 = scroller(scrolls, height2)
         scrolls += 1
         # I just want to make sure that the scroller doesn't stop too early
-        #if scrolls >= 300 or stopped:
-        if scrolls >= 400:
+        if len(distinct_posts) != len_distinct_posts:
+            stopped_time = datetime.now()
+        if scrolls >= 800 or (datetime.now() - stopped_time).total_seconds() > 300:
             break
+#        if scrolls >= 500 or stopped:
+#            break
     return distinct_posts
 
 def check_conditions(count, row, start_at = 0):
