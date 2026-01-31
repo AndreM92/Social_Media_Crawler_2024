@@ -15,9 +15,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.facebook.com/'
 platform = 'Facebook'
 
-upper_datelimit = '2025-12-01'
-folder_name = "SMP_Glücksspiel_2025"
-file_name = "Auswahl SMP Glücksspiel_2025-12-01"
+upper_datelimit = '2026-02-01'
+folder_name = "SMP_ÖPNV_2026"
+file_name = "Website_Links_2026-01-29"
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -146,11 +146,10 @@ def scrapeProfile(url, take_screenshot):
     else:
         driver.execute_script("window.scrollBy(0, 300);")
     time.sleep(1)
-    if not last_post:
-        date_text = pagetext.rsplit('Facebook')[-1].strip()
-        if len(date_text) < 50:
-            date_text = pagetext.rsplit('Mehr Beiträge')[-1].strip()
-        last_post = date_hint(date_text)
+    date_text = pagetext.rsplit('Facebook')[-1].strip()
+    if len(date_text) < 50:
+        date_text = pagetext.rsplit('Mehr Beiträge')[-1].strip()
+    last_post = date_hint(date_text)
     if not last_post:
         time.sleep(3)
         soup = BeautifulSoup(driver.page_source, 'lxml')
@@ -161,12 +160,13 @@ def scrapeProfile(url, take_screenshot):
         if len(posts) >= 1:
             last_post = date_hint(scr_text)
     #raw_desc_elements = soup.find_all('div',class_='x1yztbdb')
-    raw_desc_elements = soup.find_all('div', class_='xieb3on')
+    raw_desc_elements = soup.find_all('div', class_='x7wzq59')
     if len(raw_desc_elements) >= 1:
         for e in raw_desc_elements:
             raw_desc = get_visible_text(Comment, e)
             if len(raw_desc) >= 31:
-                if "Intro" in raw_desc[:30] or 'Steckbrief' in raw_desc[30] or 'Beschreibung' in raw_desc[30] or len(raw_desc) > 30:
+                if "Intro" in raw_desc[:30] or 'Steckbrief' in raw_desc[30] or 'Beschreibung' in raw_desc[30] \
+                        or 'Details' in raw_desc[:30] or len(raw_desc) > 100:
                     break
     if not raw_desc:
         try:
@@ -174,9 +174,10 @@ def scrapeProfile(url, take_screenshot):
             raw_desc = extract_text(raw_desc_elem)
         except:
             return [p_name, pagelikes, follower, '', url, pagetext]
-
+    if 'Details' in raw_desc:
+        raw_desc = raw_desc.split('Details',1)[1]
     description = raw_desc.replace('Steckbrief ', '').replace('Intro', '').strip()
-    stats_elem = soup.find('div',class_='x9f619 x1n2onr6 x1ja2u2z x78zum5 xdt5ytf x2lah0s x193iq5w x1cy8zhl xyamay9')
+    stats_elem = soup.find('div',class_='x9f619 x1n2onr6 x1ja2u2z x78zum5 xdt5ytf x2lah0s x193iq5w x1cy8zhl xyamay9 x1614ocl')
     stats_text = extract_text(stats_elem)
     if stats_text:
         stats_list = str(stats_text).split('•')
@@ -187,6 +188,8 @@ def scrapeProfile(url, take_screenshot):
                 follower = extract_every_number(e)
     if len(description) <= 5:
         description = extract_text(pagetext)
+    if 'Fotos Alle Fotos' in description:
+        description = description.rsplit('Fotos Alle Fotos',1)[0]
     new_url = driver.current_url
     if '?locale' in new_url:
         new_url = new_url.split('?locale')[0]
@@ -223,7 +226,7 @@ if __name__ == '__main__':
                 ID = int(ID)
                 if ID < start_ID:  # If you want to skip some rows
                     continue
-                start_ID = ID + 1
+#                start_ID = ID + 1
             except:
                 ID = str(ID)
 
@@ -237,7 +240,7 @@ if __name__ == '__main__':
             continue
         # Correct the url
         url = url.split('/followers')[0].split('/impressu')[0].split('locale=')[0]
-        scraped_data = scrapeProfile(url, take_screenshot = True)
+        scraped_data = scrapeProfile(url, take_screenshot = False)
         full_row = [ID, company, dt_str] + scraped_data
         data.append(full_row)
         print(full_row)
