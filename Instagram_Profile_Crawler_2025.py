@@ -15,9 +15,10 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 
-upper_datelimit = '2025-12-01'
-folder_name = "SMP_Glücksspiel_2025"
-file_name = "Auswahl SMP Glücksspiel_2025-12-01"
+upper_datelimit = '2026-02-01'
+folder_name = "SMP_ÖPNV_2026"
+file_name = "Website_Links_2026-01-29"
+#file_name = "Auswahl SMP Glücksspiel_2025-12-01"
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -89,12 +90,15 @@ def scrapeProfile(url, comp_keywords):
             p_list = [h for h in headers if len(h) >= 3 and (not 'neu' in h.lower() and not 'benachrichtigung' in h.lower())]
             if len(p_list) >= 1:
                 p_name = p_list[0]
-    p_stats = soup.find('ul',class_='x78zum5 x1q0g3np xieb3on')
+    #p_stats = soup.find('ul',class_='x78zum5 x1q0g3np xieb3on')
+    stats_class = 'html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x18d9i69 x1c1uobl x9f619 xjbqb8w x40hh3e x78zum5 x15mokao x1ga7v0g x16uus16 xbiv7yw x1uhb9sk x1plvlek xryxfnj x1c4vz4f x2lah0s x1q0g3np xqjyukv x6s0dn4 x1oa3qoh x1nhvcw1'
+    p_stats = soup.find('div',class_=stats_class)
     if p_stats:
-        stats_list = p_stats.find_all('li')
+        stats_list = p_stats.find_all('span')
         if stats_list:
             for e in stats_list:
                 i = extract_text(e)
+#                print(i)
                 if 'Beiträge' in i:
                     total_posts = extract_every_number(i)
                 elif 'Follower' in i:
@@ -115,6 +119,8 @@ def scrapeProfile(url, comp_keywords):
         desc = header_text
     if len(str(desc)) <= 4:
         desc = pagetext
+    if 'Nutzungsbedingungen' in desc:
+        desc = desc.rsplit('Nutzungsbedingungen',1)[0]
     if 'Noch keine Beiträge' in pagetext:
         return [p_name, total_posts, follower, last_post, new_url, desc]
 
@@ -152,10 +158,13 @@ if __name__ == '__main__':
     data = []
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
-    login(username_insta, password_insta)
+    try:
+        login(username_insta, password_insta)
+    except exception as e:
+        print(e)
     input('Press ENTER after the page is loaded')
 
-    start_ID = 83
+    start_ID = 0
     # Loop through the companies
     for ID, row in df_source.iterrows():
         if 'ID' in col_list and col_list[0] != 'ID':
@@ -171,12 +180,21 @@ if __name__ == '__main__':
             empty_row = [ID, company, dt_str] + ['' for _ in range(6)]
             data.append(empty_row)
             continue
-
-        scraped_data = scrapeProfile(url, comp_keywords)
+        try:
+            scraped_data = scrapeProfile(url, comp_keywords)
+        except:
+            try:
+                time.sleep(3)
+                scraped_data = scrapeProfile(url, comp_keywords)
+            except:
+                empty_row = [ID, company, dt_str] + ['technical issues'] + ['' for _ in range(5)]
+                data.append(empty_row)
+                continue
         full_row = [ID, company, dt_str] + scraped_data
         data.append(full_row)
         print(full_row)
-        break
+
+
     # DataFrame
     header = ['ID', 'company', 'date', 'profile_name', 'all_posts', 'follower', 'last_post', 'url', 'description']
     df_profiles = pd.DataFrame(data,columns=header)
