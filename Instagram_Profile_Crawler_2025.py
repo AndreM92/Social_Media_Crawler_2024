@@ -90,9 +90,10 @@ def scrapeProfile(url, comp_keywords):
             p_list = [h for h in headers if len(h) >= 3 and (not 'neu' in h.lower() and not 'benachrichtigung' in h.lower())]
             if len(p_list) >= 1:
                 p_name = p_list[0]
-    #p_stats = soup.find('ul',class_='x78zum5 x1q0g3np xieb3on')
-    stats_class = 'html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x18d9i69 x1c1uobl x9f619 xjbqb8w x40hh3e x78zum5 x15mokao x1ga7v0g x16uus16 xbiv7yw x1uhb9sk x1plvlek xryxfnj x1c4vz4f x2lah0s x1q0g3np xqjyukv x6s0dn4 x1oa3qoh x1nhvcw1'
-    p_stats = soup.find('div',class_=stats_class)
+    p_stats = soup.find('ul',class_='x78zum5 x1q0g3np xieb3on')
+    if not p_stats or len(p_stats) <= 1:
+        stats_class = 'html-div xdj266r x14z9mp xat24cr x1lziwak xexx8yu xyri2b x18d9i69 x1c1uobl x9f619 xjbqb8w x40hh3e x78zum5 x15mokao x1ga7v0g x16uus16 xbiv7yw x1uhb9sk x1plvlek xryxfnj x1c4vz4f x2lah0s x1q0g3np xqjyukv x6s0dn4 x1oa3qoh x1nhvcw1'
+        p_stats = soup.find('div', class_=stats_class)
     if p_stats:
         stats_list = p_stats.find_all('span')
         if stats_list:
@@ -160,7 +161,7 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
     try:
         login(username_insta, password_insta)
-    except exception as e:
+    except Exception as e:
         print(e)
     input('Press ENTER after the page is loaded')
 
@@ -173,6 +174,7 @@ if __name__ == '__main__':
             ID = int(ID)
         if ID < start_ID:  # If you want to skip some rows
             continue
+#        start_ID = ID + 1
         company = extract_text(row[comp_header])
         comp_keywords = get_company_keywords(company, row, col_list)
         url = str(row[platform])
