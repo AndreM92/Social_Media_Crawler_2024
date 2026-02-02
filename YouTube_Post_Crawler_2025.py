@@ -54,6 +54,10 @@ def get_likes(soup):
     likes_text = extract_text(soup.find('like-button-view-model'))
     if not likes_text:
         likes_elem = soup.find('button', {'aria-label': lambda x: x and 'mag das Video' in x})
+    if likes_elem:
+        likes_text = extract_text(likes_elem['aria-label'])
+    if not likes_text:
+        likes_elem = soup.find('button', {'aria-label': lambda x: x and 'video liken' in x.lower()})
         if likes_elem:
             likes_text = extract_text(likes_elem['aria-label'])
     if likes_text:
@@ -80,6 +84,8 @@ def get_video_details(soup):
         desc = full_desc
         if 'Weniger anzeigen' in desc:
             desc = desc.split('Weniger anzeigen',1)[1].strip()
+            if len(desc) < 5:
+                desc = full_desc
         if '...mehr' in desc:
             desc = desc.split('...mehr')[0].strip()
         desc_l = full_desc.split()
@@ -91,10 +97,13 @@ def get_video_details(soup):
                 try:
                     date_dt = datetime.strptime(date_opt, "%d.%m.%Y")
                     date = date_dt.strftime("%d.%m.%Y")
+                    if date in desc:
+                        desc = desc.split(date,1)[1].strip()
                 except:
                     pass
             if views != '' and date != '':
                 break
+    desc = desc.replace('Diesem Video wurde keine Beschreibung hinzugefügt.','').strip()
     if desc == '…':
         desc = ''
     return [date_str, date, views, desc]
@@ -182,7 +191,10 @@ def getVideolinks(url):
         if scrheight == newheight or scrolls == 10:
             break
     videos = soup.find_all('div',{'id':'details'})
-    videolinks = ['https://www.youtube.com' + v.find('a',href=True)['href'] for v in videos if v.find('a',href=True)]
+    if len(videos) == 0:
+        videos = soup.find_all('div', {'id': 'content'})
+    videolinks_r = ['https://www.youtube.com' + v.find('a',href=True)['href'] for v in videos if v.find('a',href=True)]
+    videolinks = [v for v in videolinks_r if len(v) > 37]
 #    print(f'Anzahl der Videolinks: {len(videolinks)}')
     return videolinks
 
@@ -240,7 +252,7 @@ if __name__ == '__main__':
     os.chdir(path_to_crawler_functions)
     from crawler_functions import *
     os.chdir(file_path)
-    file ='Profile_' + platform + '_2025'
+    file ='Profile_' + platform + '_2026'
     df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, None, upper_datelimit)
     col_names = list(df_source.columns)
 
@@ -268,7 +280,7 @@ if __name__ == '__main__':
 
         data_per_company = crawl_all_videos(dt_str, row, videolinks)
         all_data += data_per_company
-        start_ID = ID + 1
+#        start_ID = ID + 1
 
         # Create a DataFrame with all posts
         header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
