@@ -175,7 +175,6 @@ def comment_crawler(driver, post_text):
 
 def scrape_post(post_url, p_name, upper_dt, lower_dt):
     post_date, likes, comments, image, video, calls, content, reactions_raw = ['' for _ in range(8)]
-    post_dt = None
     soup = BeautifulSoup(driver.page_source, 'lxml')
     post_text = get_visible_text(Comment, soup)
     date_elem = soup.find('time', class_='x1p4m5qa')
@@ -199,14 +198,23 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
     if not content_elem:
         content_elem = soup.find('div', class_='x4h1yfo')
         content = get_visible_text(Comment, content_elem)
-    if len(str(content)) >= 100:
-        if 'Wo.' in str(content)[:100]:
-            content = content.split('Wo.',1)[1].strip()
-        if 'gefällt' in str(content)[:100]:
-            content = content.split('gefällt',1)[1].strip()
-    if len(str(content)) <= 4:
+    content = str(content)
+    if len(content) <= 4:
         if len(post_text) >= 1000:
             content = post_text
+    if len(content) >= 100:
+        if 'Wo.' in content[:100]:
+            content2 = content.split('Wo.',1)[1].strip()
+            if len(content2) > 30:
+                content = content2
+        if 'Gefällt' in content[:100]:
+            content2 = content.split('Gefällt',1)[1].strip()
+            if len(content2) > 30:
+                content = content2
+        if p_name in content[:100]:
+            content2 = content.split(p_name,1)[1].strip()
+            if len(content2) > 30:
+                content = content2
     if soup.find('video'):
         video, image = 1,0
     else:
@@ -257,7 +265,7 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
         likes = int(0)
     comments = comment_crawler(driver, post_text)
     if comments > 0 and post_text != content:
-        if len(str(content)) > 10:
+        if len(content) > 10:
             reactions_raw = post_text.split(content[-10:])[-1].split('Weitere Beiträge')[0]
     # Not all comments are shown, so I have to estimate the real number:
     if comments and 200 > comments > 14 :
@@ -357,7 +365,7 @@ if __name__ == '__main__':
         content_list = []
         while True:
             counter += 1
-            if counter > 3000 or oor_posts > 200:
+            if counter > 3000 or oor_posts > 300:
                 break
             post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
             if not post_dt or not scraped_data:
