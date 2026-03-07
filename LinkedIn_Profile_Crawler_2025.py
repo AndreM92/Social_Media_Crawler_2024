@@ -15,9 +15,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.linkedin.com/login/de'
 platform = 'LinkedIn'
 
-upper_datelimit = '2025-12-01'
-folder_name = "SMP_Glücksspiel_2025"
-file_name = "Auswahl SMP Glücksspiel_2025-12-01"
+folder_name = "SMP_ÖPNV_2026"
+file_name = "Auswahl SMP ÖPNV_2026-03-02"
+upper_datelimit = '2026-03-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -181,12 +181,15 @@ if __name__ == '__main__':
 
     # Open the browser, go to the startpage and login
     data = []
-    start_ID = 0
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
-    login(useremail_li, password_li, driver)
-    input('Press ENTER after the page is loaded')
+    try:
+        login(useremail_li, password_li, driver)
+        input('Press ENTER after the page is loaded')
+    except:
+        input('Press ENTER after manual login')
 
+    start_ID = 0
     # Loop through the profiles
     for ID, row in df_source.iterrows():
         if 'ID' in col_list and col_list[0] != 'ID':
@@ -219,6 +222,7 @@ if __name__ == '__main__':
         data.append([ID, company, dt_str] + scraped_row)
         start_ID = ID + 1
         print([ID, company, dt_str] + scraped_row)
+
 
     # Create a DataFrame
     header = ['ID', 'company', 'date', 'profile_name', 'follower', 'employees', 'last_post', 'url', 'tagline',
