@@ -15,9 +15,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.facebook.com/'
 platform = 'Facebook'
 
-upper_datelimit = '2026-02-01'
 folder_name = "SMP_ÖPNV_2026"
-file_name = "Website_Links_2026-01-29"
+file_name = "Auswahl SMP ÖPNV_2026-03-02"
+upper_datelimit = '2026-03-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -213,8 +213,11 @@ if __name__ == '__main__':
     data = []
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
-    login(useremail_fb, password_fb, driver, pyautogui)
-    input('Press ENTER after the page is loaded')
+    try:
+        login(useremail_fb, password_fb, driver, pyautogui)
+        input('Press ENTER after the page is loaded')
+    except:
+        input('Press ENTER after manual login')
 
     start_ID = 0
     # Loop through the companies
