@@ -14,8 +14,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.facebook.com/'
 platform = 'Facebook'
 
-upper_datelimit = '2025-12-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Glücksspiel_2025'
+folder_name = "SMP_ÖPNV_2026"
+upper_datelimit = '2026-03-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop/' + folder_name
 ########################################################################################################################
 
 # Facebook Login function
@@ -261,7 +262,11 @@ if __name__ == '__main__':
     all_data = []
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
-    login(username_fb, password_fb, driver, pyautogui)
+    try:
+        login(useremail_fb, password_fb, driver, pyautogui)
+        input('Press ENTER after the page is loaded')
+    except:
+        input('Press ENTER after manual login')
     time.sleep(3)
     check_for_captchas(driver, Comment)
     input('Press ENTER if the Login was successful')
@@ -289,8 +294,10 @@ if __name__ == '__main__':
         no_p = 0
         days_delta = (last_post_dt - lower_dt).days
         scrolls = round(days_delta / 2)
-        if scrolls < 100:
-            scrolls = 100
+        if scrolls < 80:
+            scrolls = 80
+        elif scrolls > 160:
+            scrolls = 160
 
         for _ in range(scrolls):
             len_post_list = len(data_per_company)
