@@ -423,9 +423,8 @@ def dateFormat(d):
     return dt_format
 
 def get_approx_date(crawl_date_dt, date_str):
-    day = crawl_date_dt.day
-    month = crawl_date_dt.month
     cur_year = crawl_date_dt.year
+    day = '01'
     if not date_str or date_str == '':
         return [crawl_date_dt,'']
     if 'Tag' in date_str or 'T' in date_str[-2:]:
@@ -434,12 +433,16 @@ def get_approx_date(crawl_date_dt, date_str):
     elif 'Woche' in date_str or 'W.' in date_str:
         delta = int(re.sub(r'[^0-9]', '', date_str))
         post_date_dt = crawl_date_dt - timedelta(weeks=delta)
-    elif '0 Monate' in date_str:
+    elif '0 Monate' in date_str and not '10' in date_str:
         post_date_dt = crawl_date_dt - timedelta(weeks=4)
     elif 'Monat' in date_str:
         delta = int(re.sub(r'[^0-9]', '', date_str))
         post_date_dt = crawl_date_dt - timedelta(days=delta*30)
-        post_date_dt = post_date_dt.replace(day=1)
+        year = post_date_dt.year
+        month = str(post_date_dt.month).zfill(2)
+        post_date = f'{day}.{month}.{year}'
+        post_date_dt = datetime.strptime(post_date,"%d.%m.%Y")
+        return [post_date_dt, post_date]
     elif 'Jahr' in date_str:
         delta = int(re.sub(r'[^0-9]', '', date_str))
         if delta == 1:
@@ -460,7 +463,6 @@ def get_approx_date(crawl_date_dt, date_str):
     else:
         post_date_dt = crawl_date_dt
     post_date = post_date_dt.strftime("%d.%m.%Y")
-
     return [post_date_dt, post_date]
 
 
