@@ -1,6 +1,5 @@
 
 import os
-import requests
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 import lxml
@@ -15,15 +14,13 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.linkedin.com/login/de'
 platform = 'LinkedIn'
 
-upper_datelimit = '2025-12-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Glücksspiel_2025'
-file_name = 'Auswahl SMP Glücksspiel_2025-12-01'
-file_type = '.xlsx'
-source_file = file_path + '/' + file_name + file_type
+folder_name = "SMP_ÖPNV_2026"
+upper_datelimit = '2026-03-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop/' + folder_name
 ########################################################################################################################
 
 # Login function
-def login(driver, username, password):
+def login(username, password, driver):
     WebDriverWait(driver,5).until(EC.presence_of_element_located((By.CSS_SELECTOR,'form.login__form')))
     nameslot = driver.find_element(By.CSS_SELECTOR, 'input#username')
     pwslot = driver.find_element(By.CSS_SELECTOR,'input#password')
@@ -48,7 +45,12 @@ def find_post_date(p):
         if any(d in str(e) for d in date_elements):
             date_str = get_visible_text(Comment, e)
             if '•' in date_str:
-                date_str = date_str.split('•')[1].strip()
+                date_str1 = date_str.split('•')[1].strip()
+            if len(date_str1) <= 7 or not any(e.isdigit() for e in date_str1[:15]):
+                if '•' in date_str:
+                    date_str = date_str.split('•')[0].strip()
+            if len(date_str) <= 7 or not any(e.isdigit() for e in date_str[:15]):
+                continue
             try:
                 post_date_dt, last_post = get_approx_date(datetime.now(), date_str)
                 break
@@ -226,7 +228,11 @@ if __name__ == '__main__':
     all_data = []
     driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
-    login(driver, useremail_li, password_li)
+    try:
+        login(useremail_li, password_li, driver)
+        input('Press ENTER after the page is loaded')
+    except:
+        input('Press ENTER after manual login')
 
     start_ID = 0
     # Iterate over the companies
