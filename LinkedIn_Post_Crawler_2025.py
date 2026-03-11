@@ -39,18 +39,13 @@ def login(username, password, driver):
 def find_post_date(p):
     post_date_dt = None
     last_post = None
-    date_elements = ['Min.', 'Std.', 'Tag', 'Woche', 'Monat', 'Jahr']
+    date_elements = ['Min', 'Std', 'Tag', 'Woche', 'Monat', 'Jahr']
     span_elems = p.find_all('span')
     for e in span_elems:
         if any(d in str(e) for d in date_elements):
             date_str = get_visible_text(Comment, e)
             if '•' in date_str:
-                date_str1 = date_str.split('•')[1].strip()
-            if len(date_str1) <= 7 or not any(e.isdigit() for e in date_str1[:15]):
-                if '•' in date_str:
-                    date_str = date_str.split('•')[0].strip()
-            if len(date_str) <= 7 or not any(e.isdigit() for e in date_str[:15]):
-                continue
+                date_str = date_str.split('•')[1].strip()
             try:
                 post_date_dt, last_post = get_approx_date(datetime.now(), date_str)
                 break
