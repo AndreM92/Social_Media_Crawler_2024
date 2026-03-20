@@ -15,10 +15,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 
-upper_datelimit = '2026-02-01'
 folder_name = "SMP_ÖPNV_2026"
-file_name = "Website_Links_2026-01-29"
-#file_name = "Auswahl SMP Glücksspiel_2025-12-01"
+file_name = "Auswahl SMP ÖPNV_2026-03-02"
+upper_datelimit = '2026-03-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################

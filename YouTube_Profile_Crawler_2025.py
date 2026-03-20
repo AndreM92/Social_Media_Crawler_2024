@@ -15,9 +15,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.youtube.com/'
 platform = 'YouTube'
 
-upper_datelimit = '2025-12-01'
-folder_name = "SMP_Glücksspiel_2025"
-file_name = "Auswahl SMP Glücksspiel_2025-12-01"
+folder_name = "SMP_ÖPNV_2026"
+file_name = "Auswahl SMP ÖPNV_2026-03-02"
+upper_datelimit = '2026-03-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -185,7 +185,13 @@ def scrapeProfile(url, comp_keywords):
         n_text = extract_text(n)
         if any(c.lower() in n_text.lower() for c in comp_keywords):
             p_name = n_text
-            if len(p_name):
+            if len(p_name) > 3:
+                break
+    if not p_name:
+        for n in name_options:
+            n_text = extract_text(n)
+            if len(n_text) > 4:
+                p_name = n_text
                 break
 #    follower_elem = extract_text(soup.find('yt-formatted-string',{'id':'subscriber-count'}))
     span_text = [extract_text(e) for e in soup.find_all('span')]
@@ -233,7 +239,7 @@ if __name__ == '__main__':
     data = []
     driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
-    start_ID = 0  # start the crawler at a specific ID
+    start_ID = 7  # start the crawler at a specific ID
 
     # Loop through the profiles
     for ID, row in df_source.iterrows():

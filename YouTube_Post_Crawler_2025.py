@@ -15,8 +15,8 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.youtube.com/'
 platform = 'YouTube'
 
-upper_datelimit = '2025-12-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Glücksspiel_2025'
+upper_datelimit = '2026-03-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_ÖPNV_2026'
 ########################################################################################################################
 
 def open_and_check_page(link):
@@ -252,7 +252,7 @@ if __name__ == '__main__':
     os.chdir(path_to_crawler_functions)
     from crawler_functions import *
     os.chdir(file_path)
-    file ='Profile_' + platform + '_2026'
+    file = 'Profile_' + platform + '_' + str(datetime.now().year)
     df_source, dt, dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, None, upper_datelimit)
     col_names = list(df_source.columns)
 
@@ -268,6 +268,8 @@ if __name__ == '__main__':
             ID = row['ID_new']
         elif 'ID' in col_names:
             ID = row['ID']
+        if ID < 0:
+            continue
         url = str(row['url'])
         go_crawl = check_conditions(ID,row,start_at=start_ID)
         if not go_crawl:

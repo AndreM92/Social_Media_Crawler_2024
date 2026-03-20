@@ -15,8 +15,8 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 
-upper_datelimit = '2025-12-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Glücksspiel_2025'
+upper_datelimit = '2026-03-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_ÖPNV_2026'
 ########################################################################################################################
 
 def remove_insta_cookies():
@@ -325,7 +325,7 @@ if __name__ == '__main__':
         username_insta = str(input('Enter your username:')).strip()
         password_insta = str(input('Enter your password:')).strip()
     os.chdir(file_path)
-    file ='Profile_' + platform + '_' + str(datetime.now().year-1)
+    file ='Profile_' + platform + '_' + str(datetime.now().year)
     for f in os.listdir():
         if file in f:
             file = extract_text(f)
@@ -339,11 +339,9 @@ if __name__ == '__main__':
     go_to_page(driver, startpage)
     try:
         login(username_insta, password_insta)
+        input('Press ENTER after the page is loaded')
     except:
-        input('log in manually')
-    if '/auth_platform' in driver.current_url:
-        input('Press ENTER after 2FA')
-    input('Press ENTER if the Login was successful')
+        input('Press ENTER after manual login')
 
     # Instagram will likely block your account after two hours of scraping
     start_time = time.time()
@@ -365,7 +363,7 @@ if __name__ == '__main__':
         content_list = []
         while True:
             counter += 1
-            if counter > 3000 or oor_posts > 300:
+            if counter > 3000 or oor_posts > 50:
                 break
             post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
             if not post_dt or not scraped_data:

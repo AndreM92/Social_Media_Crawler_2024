@@ -14,8 +14,8 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://x.com/i/flow/login'
 platform = 'X'
 
-upper_datelimit = '2025-12-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Glücksspiel_2025'
+upper_datelimit = '2026-03-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_ÖPNV_2026'
 ########################################################################################################################
 
 # Login function
@@ -302,10 +302,6 @@ if __name__ == '__main__':
         password_tw = str(input('Enter your password:')).strip()
     os.chdir(file_path)
     file ='Profile_' + platform + '_' + str(datetime.now().year)
-    for f in os.listdir():
-        if file in f:
-            file = extract_text(f)
-            break
     df_source, dt, crawl_dt_str, upper_dt, lower_dt = post_crawler_settings(file, platform, None, upper_datelimit)
     col_names = list(df_source.columns)
 

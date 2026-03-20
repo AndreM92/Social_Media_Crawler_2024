@@ -15,9 +15,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://x.com/i/flow/login'
 platform = 'Twitter'
 
-upper_datelimit = '2025-12-01'
-folder_name = "SMP_Glücksspiel_2025"
-file_name = "Auswahl SMP Glücksspiel_2025-12-01"
+folder_name = "SMP_ÖPNV_2026"
+file_name = "Auswahl SMP ÖPNV_2026-03-02"
+upper_datelimit = '2026-03-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -179,7 +179,7 @@ if __name__ == '__main__':
             ID = int(row['ID'])
         elif not 'nan' in str(n):
             ID = int(n)
-        if ID <= 0:                   # If you want to skip some rows
+        if ID <= -1:                   # If you want to skip some rows
             continue
 
         company = extract_text(row[comp_header])
@@ -191,7 +191,10 @@ if __name__ == '__main__':
             continue
 
         datarow = scrapeProfile(driver, url)
-        full_row = [ID, company, dt_str] + datarow
+        try:
+            full_row = [ID, company, dt_str] + datarow
+        except:
+            full_row = [ID, company, dt_str, 'Fehlerhafter Link'] + ['' for _ in range(6)]
         data.append(full_row)
         print(datarow)
 
@@ -203,7 +206,7 @@ if __name__ == '__main__':
     # Export to Excel
 #    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
     dt_str_now = datetime.now().strftime("%Y-%m-%d")
-    recent_filename = 'Profile_' + platform + '_' + dt_str_now + '_2.xlsx'
+    recent_filename = 'Profile_' + platform + '_' + dt_str_now + '.xlsx'
     df_profiles.to_excel(recent_filename)
 
     driver.quit()

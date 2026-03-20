@@ -1,6 +1,5 @@
 
 import os
-import requests
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 import lxml
@@ -16,11 +15,10 @@ chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromed
 path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
 startpage = 'https://www.tiktok.com/'
 platform = 'TikTok'
-dt_str_now = None
 
-upper_datelimit = '2025-12-01'
-folder_name = "SMP_Glücksspiel_2025"
-file_name = "Auswahl SMP Glücksspiel_2025-12-01"
+folder_name = "SMP_ÖPNV_2026"
+file_name = "Auswahl SMP ÖPNV_2026-03-02"
+upper_datelimit = '2026-03-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -128,12 +126,14 @@ if __name__ == '__main__':
     for ID, row in df_source.iterrows():
         if 'ID' in col_list and col_list[0] != 'ID':
             ID = int(row['ID'])
-        if not 'nan' in str(ID):
-            ID = int(ID)
-        if not str(ID).isdigit():
-            break
-        if ID < start_ID:  # If you want to skip some rows
-            continue
+        elif not 'nan' in str(ID):
+            try:
+                ID = int(ID)
+                if ID < start_ID:  # If you want to skip some rows
+                    continue
+                start_ID = ID + 1
+            except:
+                ID = str(ID)
 
         company = extract_text(row[comp_header])
         if len(company) <= 4 and 'Name in Studie' in col_names:
@@ -145,6 +145,8 @@ if __name__ == '__main__':
             data.append(empty_row)
             continue
         if not first_captcha:
+            soup = BeautifulSoup(driver.page_source, 'lxml')
+            pagetext = get_visible_text(Comment, soup)
             soup, pagetext = check_for_captchas(soup, pagetext, link)
             first_captcha = True
 
