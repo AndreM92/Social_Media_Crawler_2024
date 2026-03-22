@@ -249,6 +249,8 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
             if len(likelink) >= 1:
                 likes = likelink[0]
         elif 'Gefällt' in react_text or 'likes' in react_text.lower():
+            if ',' in react_text:
+                react_text = react_text.split(',')[0]
             likes = extract_number(react_text)
         if likes == '' and 'weiteren Personen' in post_text:
             # This alternative like display will be scraped with the alternative comment display later
