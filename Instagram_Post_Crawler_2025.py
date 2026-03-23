@@ -249,9 +249,13 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
             if len(likelink) >= 1:
                 likes = likelink[0]
         elif 'Gefällt' in react_text or 'likes' in react_text.lower():
+            likes = extract_number(react_text)
             if ',' in react_text:
                 react_text = react_text.split(',')[0]
-            likes = extract_number(react_text)
+                likes_corr = extract_number(react_text)
+                if len(str(likes_corr)) >= 4:
+                    likes = likes_corr
+
         if likes == '' and 'weiteren Personen' in post_text:
             # This alternative like display will be scraped with the alternative comment display later
             likelink = ['https://www.instagram.com/' + l['href'] for l in soup.find_all('a', href=True) if
