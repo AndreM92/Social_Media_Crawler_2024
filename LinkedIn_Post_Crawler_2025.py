@@ -45,7 +45,11 @@ def find_post_date(p):
         if any(d in str(e) for d in date_elements):
             date_str = get_visible_text(Comment, e)
             if '•' in date_str:
-                date_str = date_str.split('•')[1].strip()
+                date_str_options = date_str.split('•')
+                for de in date_str_options:
+                    if any(d in str(de) for d in date_elements):
+                        date_str = str(de).strip()
+                        break
             try:
                 post_date_dt, last_post = get_approx_date(datetime.now(), date_str)
                 break
@@ -250,7 +254,6 @@ if __name__ == '__main__':
 
         data_per_company = scrape_all_posts(ID, p_name, lower_dt, upper_datelimit)
         all_data += data_per_company
-
         # Create a DataFrame with all posts
         header1 = ['ID_A', 'Profilname', 'ID_P', 'Erhebung', 'Datum']
         header2 = ['post_type', 'Likes', 'Kommentare', 'Shares', 'Bild', 'Video', 'Link', 'Content']

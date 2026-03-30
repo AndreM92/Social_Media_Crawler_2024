@@ -48,7 +48,11 @@ def find_post_date(p):
         if any(d in str(e) for d in date_elements):
             date_str = get_visible_text(Comment, e)
             if '•' in date_str:
-                date_str = date_str.split('•')[1].strip()
+                date_str_options = date_str.split('•')
+                for de in date_str_options:
+                    if any(d in str(de) for d in date_elements):
+                        date_str = str(de).strip()
+                        break
             try:
                 post_date_dt, last_post = get_approx_date(datetime.now(), date_str)
                 break
