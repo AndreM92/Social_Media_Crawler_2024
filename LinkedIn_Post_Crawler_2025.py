@@ -73,10 +73,11 @@ def check_conditions(ID, p_name, row, lower_dt):
     if len(p_name) == 0 or p_name.lower() == 'nan' or p_name == 'None':
         return False
     url = str(row['url'])
-    last_post = str(row['last_post'])
+    last_post = row['last_post']
     if len(url) < 10 or 'Keine Beiträge' in str(last_post):
         return False
     if not isinstance(last_post, datetime):
+        last_post = str(last_post).strip()
         last_datestr = extract_text(last_post)
         try:
             last_post = datetime.strptime(last_datestr, "%d.%m.%Y")
@@ -254,6 +255,8 @@ if __name__ == '__main__':
 
         data_per_company = scrape_all_posts(ID, p_name, lower_dt, upper_datelimit)
         all_data += data_per_company
+
+#        start_ID = ID + 1
         # Create a DataFrame with all posts
         header1 = ['ID_A', 'Profilname', 'ID_P', 'Erhebung', 'Datum']
         header2 = ['post_type', 'Likes', 'Kommentare', 'Shares', 'Bild', 'Video', 'Link', 'Content']
