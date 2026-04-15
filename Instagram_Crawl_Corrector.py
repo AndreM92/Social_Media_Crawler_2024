@@ -16,8 +16,8 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mineralwasser 2025'
-source_file = 'Beiträge_Instagram_2025-11-23' +'.xlsx'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_ÖPNV_2026'
+source_file = 'Beiträge_Instagram_2026-04_14' +'.xlsx'
 ########################################################################################################################
 
 def remove_insta_cookies():
@@ -369,6 +369,17 @@ def check_page(row):
     except:
         post_url = None
     return id, post_url, p_name
+
+def find_comments(soup):
+    comments = ''
+    react_section = soup.find('section', class_='x6s0dn4 xrvj5dj x1o61qjw')
+    react_elements = react_section.find_all('span')
+    for pos, e in enumerate(react_elements):
+        e_t = extract_text(e)
+        if 'Kommentar' in e_t:
+            comments = extract_number(react_elements[pos + 1])
+            break
+    return comments
 ########################################################################################################################
 
 # Like (and comment count) correction
@@ -384,21 +395,16 @@ if __name__ == '__main__':
     fill_data = []
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
-    login(username_insta, password_insta)
-    input('Press ENTER if the Login was successful')
+    try:
+        login(username_insta, password_insta)
+        input('Press ENTER if the Login was successful')
+    except:
+        input('log in manually')
+    if '/auth_platform' in driver.current_url:
+        input('Press ENTER after 2FA')
 
     corr = 0
     for ID, row in df_fillc.iterrows():
-        '''
-        # Restart the driver after 150 corrections
-        if corr > 0 and (corr % 150 == 0 or corr % 151 == 0):
-            driver.quit()
-            time.sleep(5)
-            driver = start_browser(webdriver, Service, chromedriver_path)
-            go_to_page(driver, startpage)
-            login(cred.username_insta, cred.password_insta)
-            time.sleep(3)
-        '''
         comments = row['Kommentare']
         likes = row['Likes']
         if 'http' in str(likes):
@@ -426,8 +432,7 @@ if __name__ == '__main__':
                     soup = BeautifulSoup(driver.page_source,'html.parser')
                     likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
             corr += 1
-#        if comments >= 20000:
-        if ((not comments and not '0' in str(comments)) or str(comments) == 'nan' or str(comments) == '' or comments >= 200):
+        if comments >= 200:
             try:
                 driver.get(row['Link'])
                 WebDriverWait(driver, 7).until(
@@ -443,10 +448,11 @@ if __name__ == '__main__':
                     input('Press ENTER after solving website issues')
                     pass
             soup = BeautifulSoup(driver.page_source, 'lxml')
-            post_text = get_visible_text(Comment, soup)
-            comments = comment_crawler(driver, post_text)
+            comments = find_comments(soup)
             corr += 1
         fill_data.append([ID, row['ID_A'], likes, comments])
+        if corr >= 300:
+            break
 
     df_filled = pd.DataFrame(fill_data, columns=['ID','ID_A', 'Likes', 'Kommentare'])
     dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
@@ -454,5 +460,16 @@ if __name__ == '__main__':
     df_filled.to_excel(new_filename)
     print('Done')
     driver.quit()
-
+########################################################################################################
 #currentMouseX, currentMouseY = pyautogui.position()
+
+'''
+  # Restart the driver after 150 corrections
+  if corr > 0 and (corr % 150 == 0 or corr % 151 == 0):
+      driver.quit()
+      time.sleep(5)
+      driver = start_browser(webdriver, Service, chromedriver_path)
+      go_to_page(driver, startpage)
+      login(cred.username_insta, cred.password_insta)
+      time.sleep(3)
+  '''
