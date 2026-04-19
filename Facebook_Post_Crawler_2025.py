@@ -20,23 +20,24 @@ file_path = r'C:\Users\andre\OneDrive\Desktop/' + folder_name
 ########################################################################################################################
 
 # Facebook Login function
-def login(useremail, password, driver, pyautogui):
+def login(driver, useremail, password, pyautogui):
     try:
-        WebDriverWait(driver,5).until(EC.presence_of_element_located((By.XPATH,'/html/body/div[1]/div[1]/div[1]/div/div/div/div[1]/div/img')))
+        nameslot = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='email']")))
+        nameslot.clear()
+        # Typing char for char to simulate a human like behavior
+        # classic and global version:
+        # nameslot.send_keys(cred.username_insta)
+        for char in useremail:
+            nameslot.send_keys(char)
+            time.sleep(.1)
+        pwslot = driver.find_element(By.CSS_SELECTOR, "input[name='pass']")
+        pwslot.clear()
+        for char in password:
+            pwslot.send_keys(char)
+            time.sleep(.1)
+        driver.find_element(By.CSS_SELECTOR, "[aria-label='Anmelden'][role='button']").click()
     except:
-        time.sleep(3)
-    nameslot = driver.find_element('xpath','/html/body/div[1]/div[1]/div[1]/div/div/div/div[2]/div/div[1]/form/div[1]/div[1]/input')
-    nameslot.clear()
-    for char in useremail:
-        time.sleep(0.1)
-        nameslot.send_keys(char)
-    pwslot = driver.find_element('xpath','/html/body/div[1]/div[1]/div[1]/div/div/div/div[2]/div/div[1]/form/div[1]/div[2]/div/input')
-    pwslot.clear()
-    for char in password:
-        time.sleep(0.1)
-        pwslot.send_keys(char)
-    time.sleep(1)
-    driver.find_element('xpath','/html/body/div[1]/div[1]/div[1]/div/div/div/div[2]/div/div[1]/form/div[2]/button').click()
+        input('log in manually')
     time.sleep(3)
     cookiebuttons = driver.find_elements('xpath', "//*[contains(text(), 'Blockieren') or contains(text(), 'blockieren')]")
     if len(cookiebuttons) >= 1:
@@ -50,6 +51,9 @@ def login(useremail, password, driver, pyautogui):
                 time.sleep(1)
                 pyautogui.moveTo(460, 205)
                 pyautogui.click()
+    time.sleep(3)
+    check_for_captchas(driver, Comment)
+    input('Press ENTER if the Login was successful')
 
 def check_for_captchas(driver, Comment):
     soup = BeautifulSoup(driver.page_source, 'lxml')
@@ -198,6 +202,7 @@ def get_reactions(p_text1, reactions, comments):
     return react_numbers[:3]
 
 def post_scraper(p):
+    likes, comments, shares, post_date = ['','','','']
     rawtext = str(get_visible_text(Comment, p))
     if len(rawtext) <= 30 or not p_name[:4].lower() in rawtext.lower():
         return None
@@ -211,8 +216,21 @@ def post_scraper(p):
         link = get_p_link(p)
         image, video = find_p_elements(p, rawtext)
         p_text1, p_text, reactions, comments = split_p_text(rawtext)
-        likes, comments, shares = get_reactions(p_text1, reactions, comments)
-    return [post_date, likes, comments, shares, image, video, p_type, link, p_text]
+        if reactions and len(reactions) > 20:
+            likes, comments, shares = get_reactions(p_text1, reactions, comments)
+        else:
+            likes_element = p.find("div", {"aria-label": "Gefällt mir"})
+            if likes_element:
+                likes = extract_number(likes_element.find("span", {"dir": "auto"}))
+            comment_element = p.find("div", {"aria-label": "Kommentar hinterlassen"})
+            if comment_element:
+                comments = extract_number(comment_element.find("span", {"dir": "auto"}))
+            share_element = p.find("div", {"aria-label":"Sende dies an Freunde oder poste es in deinem Profil."})
+            if share_element:
+                shares = extract_number(share_element)
+    datarow = [x if x not in (None, "None", False, "Falsch") else "" for x in
+                           [post_date, likes, comments, shares, image, video, p_type, link, p_text]]
+    return datarow
 
 def check_distinct(distinct_content, scraped_post):
     p_text = str(scraped_post[-1])
@@ -245,7 +263,7 @@ if __name__ == '__main__':
     os.chdir(path_to_crawler_functions)
     from crawler_functions import *
     try:
-        from credentials_file import username_fb, password_fb
+        from credentials_file import useremail_fb, password_fb
     except:
         username_fb = str(input('Enter your username:')).strip()
         password_fb = str(input('Enter your password:')).strip()
@@ -262,14 +280,7 @@ if __name__ == '__main__':
     all_data = []
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
-    try:
-        login(useremail_fb, password_fb, driver, pyautogui)
-        input('Press ENTER after the page is loaded')
-    except:
-        input('Press ENTER after manual login')
-    time.sleep(3)
-    check_for_captchas(driver, Comment)
-    input('Press ENTER if the Login was successful')
+    login(driver, useremail_fb, password_fb, pyautogui)
 
     start_time = time.time()
     start_ID = 0
@@ -298,7 +309,6 @@ if __name__ == '__main__':
             scrolls = 80
         elif scrolls > 160:
             scrolls = 160
-
         for _ in range(scrolls):
             len_post_list = len(data_per_company)
             soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -326,7 +336,7 @@ if __name__ == '__main__':
             else:
                 no_p = 0
             driver.execute_script("window.scrollBy(0, 1600);")
-            wait_time = round(((len_post_list)*0.01)**0.5)
+            wait_time = round(((len_post_list)*0.01)**0.5) + 1
             time.sleep(wait_time)
 
         start_ID = ID + 1
