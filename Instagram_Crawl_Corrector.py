@@ -30,28 +30,30 @@ def remove_insta_cookies():
                 pass
 
 # Login function
-def login(username, password):
-    WebDriverWait(driver,5).until(EC.presence_of_element_located((By.XPATH,'//*[@id="loginForm"]/div/div[1]/div/label/input')))
+def login(driver, username, password):
     try:
-        nameslot = driver.find_element(By.CSS_SELECTOR,'input[aria-label*="Benutzername"]')
+        nameslot = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='email']")))
+        nameslot.clear()
+        # Typing char for char to simulate a human like behavior
+        # classic and global version:
+        # nameslot.send_keys(cred.username_insta)
+        for char in username:
+            nameslot.send_keys(char)
+            time.sleep(.1)
+        pwslot = driver.find_element(By.CSS_SELECTOR, "input[name='pass']")
+        pwslot.clear()
+        for char in password:
+            pwslot.send_keys(char)
+            time.sleep(.1)
+        driver.find_element(By.CSS_SELECTOR, "[aria-label='Anmelden'][role='button']").click()
+        for _ in range(7):
+            time.sleep(2)
+            remove_insta_cookies()
+        input('Press ENTER if the Login was successful')
     except:
-        nameslot = driver.find_element('xpath', '//*[@id="loginForm"]/div/div[1]/div/label/input')
-    pwslot = driver.find_element(By.CSS_SELECTOR,'input[aria-label*="Passwort"]')
-    nameslot.clear()
-    # Typing char for char to simulate a human like behavior
-    # classic and global version:
-    # nameslot.send_keys(cred.username_insta)
-    for char in username:
-        nameslot.send_keys(char)
-        time.sleep(.1)
-    pwslot.clear()
-    for char in password:
-        pwslot.send_keys(char)
-        time.sleep(.1)
-    driver.find_element('xpath', "//*[text()='Anmelden']").click()
-    for _ in range(7):
-        time.sleep(2)
-        remove_insta_cookies()
+        input('log in manually')
+    if '/auth_platform' in driver.current_url:
+        input('Press ENTER after 2FA')
 
 # This function scrapes the details of every profile
 def scrapeProfile(url, comp_keywords):
@@ -395,15 +397,10 @@ if __name__ == '__main__':
     fill_data = []
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
-    try:
-        login(username_insta, password_insta)
-        input('Press ENTER if the Login was successful')
-    except:
-        input('log in manually')
-    if '/auth_platform' in driver.current_url:
-        input('Press ENTER after 2FA')
+    login(driver, username_insta, password_insta)
 
     corr = 0
+    start_ID = 0
     for ID, row in df_fillc.iterrows():
         comments = row['Kommentare']
         likes = row['Likes']
@@ -412,7 +409,7 @@ if __name__ == '__main__':
                 driver.get(str(likes))
                 WebDriverWait(driver, 7).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, 'svg[aria-label="Instagram"]')))
-                time.sleep(2)
+                time.sleep(3)
             except:
                 try:
                     pyautogui.moveTo(1277, 587)
@@ -420,7 +417,7 @@ if __name__ == '__main__':
                     driver.get(str(likes))
                     WebDriverWait(driver, 7).until(
                         EC.presence_of_element_located((By.CSS_SELECTOR, 'svg[aria-label="Instagram"]')))
-                    time.sleep(1)
+                    time.sleep(2)
                 except:
                     input('Press ENTER after solving website issues')
                     pass
@@ -432,7 +429,7 @@ if __name__ == '__main__':
                     soup = BeautifulSoup(driver.page_source,'html.parser')
                     likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
             corr += 1
-        if comments >= 200:
+        if comments == 200:
             try:
                 driver.get(row['Link'])
                 WebDriverWait(driver, 7).until(
