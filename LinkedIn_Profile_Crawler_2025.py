@@ -15,9 +15,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.linkedin.com/login/de'
 platform = 'LinkedIn'
 
-folder_name = "SMP_ÖPNV_2026"
-file_name = "Auswahl SMP ÖPNV_2026-03-02"
-upper_datelimit = '2026-03-01'
+folder_name = "SMP_Energieanbieter_2026"
+file_name = "Auswahl_SMP Energieanbieter 2026_20260507"
+upper_datelimit = '2026-05-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -224,7 +224,7 @@ if __name__ == '__main__':
             scraped_row = scrapeProfile(company, link)
 
         data.append([ID, company, dt_str] + scraped_row)
-        start_ID = ID + 1
+#        start_ID = ID + 1
         print([ID, company, dt_str] + scraped_row)
 
 
