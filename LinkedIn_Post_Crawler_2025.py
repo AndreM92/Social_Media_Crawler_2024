@@ -14,8 +14,8 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.linkedin.com/login/de'
 platform = 'LinkedIn'
 
-folder_name = "SMP_ÖPNV_2026"
-upper_datelimit = '2026-03-01'
+folder_name = "SMP_Energieanbieter_2026"
+upper_datelimit = '2026-05-01'
 file_path = r'C:\Users\andre\OneDrive\Desktop/' + folder_name
 ########################################################################################################################
 
@@ -252,7 +252,7 @@ if __name__ == '__main__':
             go_crawl = check_conditions(ID, p_name, row, lower_dt)
         if not go_crawl:
             continue
-
+        break
         data_per_company = scrape_all_posts(ID, p_name, lower_dt, upper_datelimit)
         all_data += data_per_company
 
