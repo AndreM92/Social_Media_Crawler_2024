@@ -15,9 +15,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://x.com/i/flow/login'
 platform = 'Twitter'
 
-folder_name = "SMP_ÖPNV_2026"
-file_name = "Auswahl SMP ÖPNV_2026-03-02"
-upper_datelimit = '2026-03-01'
+folder_name = "SMP_Energieanbieter_2026"
+file_name = "Auswahl_SMP Energieanbieter 2026_20260507"
+upper_datelimit = '2026-05-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -108,8 +108,9 @@ def scrapeProfile(driver, url):
         soup = BeautifulSoup(driver.page_source, 'lxml')
         pagetext = get_visible_text(Comment, soup)
     new_url = driver.current_url
-    not_existent = 'This account doesn’t exist'
-    if len(pagetext) <= 1000 or not_existent in pagetext or (not 'twitter.com' in new_url and not 'x.com' in new_url):
+    not_ex = ['This account doesn’t exist', 'Dieser Account existiert nicht']
+    if len(pagetext) <= 1000 or not_ex[0] in pagetext or not_ex[1] in pagetext or \
+            (not 'twitter.com' in new_url and not 'x.com' in new_url):
         return [not_existent, follower, following, '', joined, new_url, pagetext]
     full_desc_elem = soup.find('div', class_='css-175oi2r r-3pj75a r-ttdzmv r-1ifxtd0')
     if not full_desc_elem:
@@ -189,9 +190,8 @@ if __name__ == '__main__':
             empty_row = [ID, company, dt_str] + ['' for _ in range(7)]
             data.append(empty_row)
             continue
-
-        datarow = scrapeProfile(driver, url)
         try:
+            datarow = scrapeProfile(driver, url)
             full_row = [ID, company, dt_str] + datarow
         except:
             full_row = [ID, company, dt_str, 'Fehlerhafter Link'] + ['' for _ in range(6)]
