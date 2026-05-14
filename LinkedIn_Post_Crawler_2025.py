@@ -64,10 +64,11 @@ def start_at(df_source, ID, row, start_ID):
         ID = extract_number(row['ID_new'])
     elif 'ID' in col_names:
         ID = extract_number(row['ID'])
+    if not ID:
+        ID = 0
     if ID < start_ID:  # If you want to skip some rows
-        return False, start_ID, ID, p_name
-    start_ID = ID + 1
-    return True, start_ID, ID, p_name
+        return False, ID, p_name
+    return True, ID, p_name
 
 def check_conditions(ID, p_name, row, lower_dt):
     if len(p_name) == 0 or p_name.lower() == 'nan' or p_name == 'None':
@@ -237,7 +238,7 @@ if __name__ == '__main__':
     start_ID = 0
     # Iterate over the companies
     for ID, row in df_source.iterrows():
-        start, start_ID, ID, p_name = start_at(df_source, ID, row, start_ID)
+        start, ID, p_name = start_at(df_source, ID, row, start_ID)
         if not start:
             continue
         try:
@@ -252,7 +253,7 @@ if __name__ == '__main__':
             go_crawl = check_conditions(ID, p_name, row, lower_dt)
         if not go_crawl:
             continue
-        break
+
         data_per_company = scrape_all_posts(ID, p_name, lower_dt, upper_datelimit)
         all_data += data_per_company
 
