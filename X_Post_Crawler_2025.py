@@ -14,8 +14,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://x.com/i/flow/login'
 platform = 'X'
 
-upper_datelimit = '2026-03-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_ÖPNV_2026'
+upper_datelimit = '2026-05-01'
+folder_name = "SMP_Energieanbieter_2026"
+file_path = r'C:\Users\andre\OneDrive\Desktop/' + folder_name
 ########################################################################################################################
 
 # Login function
@@ -271,7 +272,7 @@ def page_crawler(ID, p_name, dt_str, upper_dt, lower_dt):
         # I just want to make sure that the scroller doesn't stop too early
         if len(distinct_posts) != len_distinct_posts:
             stopped_time = datetime.now()
-        if scrolls >= 800 or (datetime.now() - stopped_time).total_seconds() > 300:
+        if scrolls >= 700 or (datetime.now() - stopped_time).total_seconds() > 300:
             break
 #        if scrolls >= 500 or stopped:
 #            break
@@ -319,6 +320,8 @@ if __name__ == '__main__':
             ID = extract_number(row['ID_new'])
         elif 'ID' in col_names:
             ID = extract_number(row['ID'])
+        if not str(ID).isdigit():
+            ID = 0
         if ID < start_ID:  # If you want to skip some rows
             continue
         p_name, url, posts, last_post = inspect_page(ID, row, lower_dt)
@@ -327,7 +330,7 @@ if __name__ == '__main__':
 
         data_per_company = page_crawler(ID, p_name, crawl_dt_str, upper_dt, lower_dt)
         all_data += data_per_company
-        start_ID = ID + 1
+#        start_ID = ID + 1
 
         # Create a DataFrame with all posts
         header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']
