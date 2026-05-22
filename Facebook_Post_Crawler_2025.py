@@ -14,8 +14,8 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.facebook.com/'
 platform = 'Facebook'
 
-folder_name = "SMP_ÖPNV_2026"
-upper_datelimit = '2026-03-01'
+folder_name = "SMP_Energieanbieter_2026"
+upper_datelimit = '2026-05-01'
 file_path = r'C:\Users\andre\OneDrive\Desktop/' + folder_name
 ########################################################################################################################
 
@@ -161,7 +161,12 @@ def split_p_text(rawtext):
             p_text = p_text.split('Teilen')[0].strip()
     else:
         if 'Kommentieren' in p_text:
-            p_text = p_text.split('Kommentieren')[0].strip()
+            if len(p_text.split('Kommentieren')[0]) > 30:
+                p_text = p_text.split('Kommentieren')[0]
+        if 'kommentieren' in p_text:
+            if len(p_text.split('kommentieren')[0]) > 30:
+                p_text = p_text.split('kommentieren')[0]
+    p_text = str(p_text).replace('Kommentare kommentieren:', '').strip()
     forbidden_chars = ['+', '-', '*', '=']
     if any(c in p_text[0] for c in forbidden_chars):
         p_text = '$$' + p_text
@@ -172,14 +177,18 @@ def split_p_text(rawtext):
         reactions = p_text.split('Alle Reaktionen:')[1].strip()
     elif 'All reactions' in p_text:
         reactions = p_text.split('All reactions:')[1].strip()
-    elif 'Kommentar' in p_text:
-        reactions = [p_text.split('Kommentar')[0].split()[-1]]
     else:
         reactions = None
+#    elif 'Kommentar' in p_text:
+#        reactions = p_text.split('Kommentar')[0].strip()
+#        if len(str(reactions)) > 4 and ' ' in str(reactions):
+#            reactions = reactions.split(' ')[-1]
+#        else:
+#            reactions = None
     return p_text1, p_text, reactions, comments
 
 def get_reactions(p_text1, reactions, comments):
-    if not reactions or len(reactions) <= 4 :
+    if not reactions or len(str(reactions)) <= 4 :
         return '', '', ''
     react_ls = [str(e).strip() for e in reactions.split(' ') if len(str(e).strip()) >= 1]
     react_numbers = [extract_every_number(e) for e in react_ls if str(e)[0].isdigit()]
@@ -298,17 +307,18 @@ if __name__ == '__main__':
         if not last_post_dt:
             print(ID, p_name, url, ' No Posts')
             continue
-
+            ############
         data_per_company = []
         distinct_content = []
         count_p = 0
         no_p = 0
-        days_delta = (last_post_dt - lower_dt).days
-        scrolls = round(days_delta / 2)
-        if scrolls < 80:
-            scrolls = 80
-        elif scrolls > 160:
-            scrolls = 160
+#        days_delta = (last_post_dt - lower_dt).days
+#        scrolls = round(days_delta / 2)
+#        if scrolls < 80:
+#            scrolls = 80
+#        elif scrolls > 200:
+#            scrolls = 200
+        scrolls = 250
         for _ in range(scrolls):
             len_post_list = len(data_per_company)
             soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -325,7 +335,7 @@ if __name__ == '__main__':
                 if distinct_content_new:
                     count_p += 1
                     full_row = [ID, p_name, count_p, crawl_dt_str] + scraped_post
-                    print(full_row)
+                    print(full_row[:-1] + [full_row[-1][:50]])
                     data_per_company.append(full_row)
                     distinct_content = distinct_content_new
             if len_post_list == len(data_per_company) and no_p >= 10:
@@ -336,7 +346,7 @@ if __name__ == '__main__':
             else:
                 no_p = 0
             driver.execute_script("window.scrollBy(0, 1600);")
-            wait_time = round(((len_post_list)*0.01)**0.5) + 1
+            wait_time = round(((len_post_list)*0.01)**0.3) + 1
             time.sleep(wait_time)
 
         start_ID = ID + 1
