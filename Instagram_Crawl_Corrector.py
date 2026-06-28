@@ -16,8 +16,11 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_ÖPNV_2026'
-source_file = 'Beiträge_Instagram_2026-04_14' +'.xlsx'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Energieanbieter_2026'
+source_file = 'Beiträge_Instagram_2026_ungeprüft' +'.xlsx'
+upper_datelimit = '2026-05-01'
+upper_dt = datetime.strptime(upper_datelimit,"%Y-%m-%d")
+lower_dt = upper_dt - timedelta(days=365)
 ########################################################################################################################
 
 def remove_insta_cookies():
@@ -341,22 +344,6 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
     return post_dt, scraped_data
 
 
-def check_conditions(id, row,start_at=0):
-    if id < start_at:  # If you want to skip some rows
-        return False
-    url = str(row['url'])
-    last_post = str(row['last_post'])
-    if len(url) < 10 or len(last_post) <= 4 or 'Keine Beiträge' in last_post:
-        print([id, url, 'no posts'])
-        return False
-    try:
-        last_datestr = extract_text(last_post)
-        last_dt = datetime.strptime(last_datestr, "%d.%m.%Y")
-        if (lower_dt + timedelta(days=31)) < last_dt:
-            return False
-    finally:
-        return True
-
 def check_page(row):
     id = str(row['ID'])
     url = str(row['url'])
@@ -373,12 +360,14 @@ def check_page(row):
     return id, post_url, p_name
 
 def find_comments(soup):
-    comments = ''
+    comments = 0
     react_section = soup.find('section', class_='x6s0dn4 xrvj5dj x1o61qjw')
+    if not react_section:
+        return comments
     react_elements = react_section.find_all('span')
     for pos, e in enumerate(react_elements):
         e_t = extract_text(e)
-        if 'Kommentar' in e_t:
+        if 'Kommentar' in e_t and (pos + 1) < len(react_elements):
             comments = extract_number(react_elements[pos + 1])
             break
     return comments
@@ -429,7 +418,7 @@ if __name__ == '__main__':
                     soup = BeautifulSoup(driver.page_source,'html.parser')
                     likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
             corr += 1
-        if comments == 200:
+        if comments >= 200:
             try:
                 driver.get(row['Link'])
                 WebDriverWait(driver, 7).until(
@@ -444,10 +433,13 @@ if __name__ == '__main__':
                 except:
                     input('Press ENTER after solving website issues')
                     pass
+            time.sleep(1)
             soup = BeautifulSoup(driver.page_source, 'lxml')
             comments = find_comments(soup)
             corr += 1
+#        print([ID, row['ID_A'], likes, comments], datetime.now().strftime("%Y-%m-%d_%H_%M_%S"))
         fill_data.append([ID, row['ID_A'], likes, comments])
+ #       start_ID = ID + 1
         if corr >= 300:
             break
 
