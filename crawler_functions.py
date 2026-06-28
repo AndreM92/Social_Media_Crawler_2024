@@ -61,13 +61,13 @@ def post_crawler_settings(file, platform, dt_str_now, upper_datelimit):
     dt_str = dt.strftime("%d.%m.%Y")
     upper_dt = datetime.strptime(upper_datelimit, '%Y-%m-%d')
     lower_dt = upper_dt - timedelta(days=366)
-#    lower_dt = upper_dt - timedelta(days=32)
     return df_source, dt, dt_str, upper_dt, lower_dt
 
 # Start the driver and open a new page
 def start_browser(webdriver, Service, chromedriver_path, headless=False, muted = False):
     # Open the Browser with a service object and an user agent
     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.182 Safari/537.36"
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument(f'user-agent={user_agent}')
     chrome_options.add_argument("--lang=de-DE")
