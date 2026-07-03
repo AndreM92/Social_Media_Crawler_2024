@@ -15,32 +15,33 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.facebook.com/'
 platform = 'Facebook'
 
-folder_name = "SMP_ÖPNV_2026"
-file_name = "Auswahl SMP ÖPNV_2026-03-02"
-upper_datelimit = '2026-03-01'
+folder_name = "SMP_Mobilfunk_2026"
+file_name = "Auswahl SMP Mobilfunk 2026_20260703"
+upper_datelimit = '2026-07-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
-
 # Facebook Login function
 def login(useremail, password, driver, pyautogui):
     try:
-        WebDriverWait(driver,5).until(EC.presence_of_element_located((By.XPATH,'/html/body/div[1]/div[1]/div[1]/div/div/div/div[1]/div/img')))
-    except:
+        nameslot = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='email']")))
+        nameslot.clear()
+        for char in useremail:
+            time.sleep(0.1)
+            nameslot.send_keys(char)
+        pwslot = driver.find_element(By.CSS_SELECTOR, "input[name='pass']")
+        pwslot.clear()
+        for char in password:
+            pwslot.send_keys(char)
+            time.sleep(.1)
+        driver.find_element(By.CSS_SELECTOR, "[aria-label='Anmelden'][role='button']").click()
         time.sleep(3)
-    nameslot = driver.find_element('xpath','/html/body/div[1]/div[1]/div[1]/div/div/div/div[2]/div/div[1]/form/div[1]/div[1]/input')
-    nameslot.clear()
-    for char in useremail:
-        time.sleep(0.1)
-        nameslot.send_keys(char)
-    pwslot = driver.find_element('xpath','/html/body/div[1]/div[1]/div[1]/div/div/div/div[2]/div/div[1]/form/div[1]/div[2]/div/input')
-    pwslot.clear()
-    for char in password:
-        time.sleep(0.1)
-        pwslot.send_keys(char)
-    time.sleep(1)
-    driver.find_element('xpath','/html/body/div[1]/div[1]/div[1]/div/div/div/div[2]/div/div[1]/form/div[2]/button').click()
-    time.sleep(3)
+    except:
+        input('log in manually')
+    if '/auth_platform' in driver.current_url:
+        input('Press ENTER after 2FA')
+    if "_verification" in driver.current_url:
+        input('Press ENTER after manual login')
     cookiebuttons = driver.find_elements('xpath', "//*[contains(text(), 'Blockieren') or contains(text(), 'blockieren')]")
     if len(cookiebuttons) >= 1:
         for c in cookiebuttons:
@@ -213,11 +214,8 @@ if __name__ == '__main__':
     data = []
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
-    try:
-        login(useremail_fb, password_fb, driver, pyautogui)
-        input('Press ENTER after the page is loaded')
-    except:
-        input('Press ENTER after manual login')
+    login(useremail_fb, password_fb, driver, pyautogui)
+    input('Press ENTER after the page is loaded')
 
     start_ID = 0
     # Loop through the companies
