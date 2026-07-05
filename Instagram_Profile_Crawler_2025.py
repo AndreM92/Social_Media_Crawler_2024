@@ -15,9 +15,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 
-folder_name = "SMP_ÖPNV_2026"
-file_name = "Auswahl SMP ÖPNV_2026-03-02"
-upper_datelimit = '2026-03-01'
+folder_name = "SMP_Mobilfunk_2026"
+file_name = "Auswahl SMP Mobilfunk 2026_20260703"
+upper_datelimit = '2026-07-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -32,28 +32,30 @@ def remove_insta_cookies():
                 pass
 
 # Login function
-def login(username, password):
-    WebDriverWait(driver,5).until(EC.presence_of_element_located((By.XPATH,'//*[@id="loginForm"]/div/div[1]/div/label/input')))
+def login(driver, username, password):
     try:
-        nameslot = driver.find_element(By.CSS_SELECTOR,'input[aria-label*="Benutzername"]')
+        nameslot = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='email']")))
+        nameslot.clear()
+        # Typing char for char to simulate a human like behavior
+        # classic and global version:
+        # nameslot.send_keys(cred.username_insta)
+        for char in username:
+            nameslot.send_keys(char)
+            time.sleep(.1)
+        pwslot = driver.find_element(By.CSS_SELECTOR, "input[name='pass']")
+        pwslot.clear()
+        for char in password:
+            pwslot.send_keys(char)
+            time.sleep(.1)
+        driver.find_element(By.CSS_SELECTOR, "[aria-label='Anmelden'][role='button']").click()
+        for _ in range(7):
+            time.sleep(2)
+            remove_insta_cookies()
+        input('Press ENTER if the Login was successful')
     except:
-        nameslot = driver.find_element('xpath', '//*[@id="loginForm"]/div/div[1]/div/label/input')
-    pwslot = driver.find_element(By.CSS_SELECTOR,'input[aria-label*="Passwort"]')
-    nameslot.clear()
-    # Typing char for char to simulate a human like behavior
-    # classic and global version:
-    # nameslot.send_keys(cred.username_insta)
-    for char in username:
-        nameslot.send_keys(char)
-        time.sleep(.1)
-    pwslot.clear()
-    for char in password:
-        pwslot.send_keys(char)
-        time.sleep(.1)
-    driver.find_element('xpath', "//*[text()='Anmelden']").click()
-    for _ in range(7):
-        time.sleep(2)
-        remove_insta_cookies()
+        input('log in manually')
+    if '/auth_platform' in driver.current_url:
+        input('Press ENTER after 2FA')
 
 # This function scrapes the details of every profile
 def scrapeProfile(url, comp_keywords):
@@ -158,11 +160,7 @@ if __name__ == '__main__':
     data = []
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
-    try:
-        login(username_insta, password_insta)
-    except Exception as e:
-        print(e)
-    input('Press ENTER after the page is loaded')
+    login(driver, username_insta, password_insta)
 
     start_ID = 0
     # Loop through the companies
