@@ -16,9 +16,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.tiktok.com/'
 platform = 'TikTok'
 
-folder_name = "SMP_ÖPNV_2026"
-file_name = "Auswahl SMP ÖPNV_2026-03-02"
-upper_datelimit = '2026-03-01'
+folder_name = "SMP_Mobilfunk_2026"
+file_name = "Auswahl SMP Mobilfunk 2026_20260706"
+upper_datelimit = '2026-07-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -84,25 +84,28 @@ def scrapeProfile(link):
     if 'Profil enthält Themen' in pagetext:
         return [p_name, 'login required', follower, following, last_post, link, userlink, desc]
     links = [l['href'] for l in soup.find_all('a',href=True)]
-    videolinks = list(set([l for l in links if 'video' in str(l)]))
+    videolinks = list(set([l for l in links if 'video' in str(l) and not '/tiktokstudio' in str(l)]))
     if len(videolinks) == 0:
         soup, pagetext = check_for_captchas(soup, pagetext, link)
         links = [l['href'] for l in soup.find_all('a', href=True)]
-        videolinks = list(set([l for l in links if 'video' in str(l)]))
+        videolinks = list(set([l for l in links if 'video' in str(l) and not '/tiktokstudio' in str(l)]))
     if len(videolinks) == 0:
         return [p_name, pagelikes, follower, following, last_post, link, userlink, desc]
 
     videolinks.sort(reverse=True)
     last_video_link = videolinks[0]
-    driver.get(last_video_link)
-    time.sleep(3)
-    soup = BeautifulSoup(driver.page_source, 'lxml')
-    name_date = extract_text(soup.find('span',{'data-e2e':'browser-nickname'}))
-    if not name_date:
-        name_date = extract_text(soup.find('span', {'class': 'css-1kcycbd-SpanOtherInfos evv7pft3'}))
-    if '·' in name_date:
-        date_str = name_date.split('·')[-1].strip()
-        last_dt, last_post = get_approx_date(datetime.now().date(), date_str)
+    try:
+        driver.get(last_video_link)
+        time.sleep(3)
+        soup = BeautifulSoup(driver.page_source, 'lxml')
+        name_date = extract_text(soup.find('span',{'data-e2e':'browser-nickname'}))
+        if not name_date:
+            name_date = extract_text(soup.find('span', {'class': 'css-1kcycbd-SpanOtherInfos evv7pft3'}))
+        if '·' in name_date:
+            date_str = name_date.split('·')[-1].strip()
+            last_dt, last_post = get_approx_date(datetime.now().date(), date_str)
+    except:
+        pass
     return [p_name, pagelikes, follower, following, last_post, link, userlink, desc]
 ########################################################################################################################
 
