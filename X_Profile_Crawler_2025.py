@@ -15,9 +15,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://x.com/i/flow/login'
 platform = 'Twitter'
 
-folder_name = "SMP_Energieanbieter_2026"
-file_name = "Auswahl_SMP Energieanbieter 2026_20260507"
-upper_datelimit = '2026-05-01'
+folder_name = "SMP_Mobilfunk_2026"
+file_name = "Auswahl SMP Mobilfunk 2026_20260706"
+upper_datelimit = '2026-07-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -171,8 +171,10 @@ if __name__ == '__main__':
     data = []
     driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
-    login(driver, startpage, username_tw, password_tw)
-    input('Change your password and login manually')
+    try:
+        login(driver, startpage, username_tw, password_tw)
+    except:
+        input('Change your password and login manually')
 
     # Iterating over the companies
     for n, row in df_source.iterrows():
