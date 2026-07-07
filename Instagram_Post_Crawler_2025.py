@@ -15,8 +15,8 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 
-upper_datelimit = '2026-03-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_ÖPNV_2026'
+upper_datelimit = '2026-07-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mobilfunk_2026'
 ########################################################################################################################
 
 def remove_insta_cookies():
@@ -29,28 +29,30 @@ def remove_insta_cookies():
                 pass
 
 # Login function
-def login(username, password):
-    WebDriverWait(driver,5).until(EC.presence_of_element_located((By.XPATH,'//*[@id="loginForm"]/div/div[1]/div/label/input')))
+def login(driver, username, password):
     try:
-        nameslot = driver.find_element(By.CSS_SELECTOR,'input[aria-label*="Benutzername"]')
+        nameslot = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='email']")))
+        nameslot.clear()
+        # Typing char for char to simulate a human like behavior
+        # classic and global version:
+        # nameslot.send_keys(cred.username_insta)
+        for char in username:
+            nameslot.send_keys(char)
+            time.sleep(.1)
+        pwslot = driver.find_element(By.CSS_SELECTOR, "input[name='pass']")
+        pwslot.clear()
+        for char in password:
+            pwslot.send_keys(char)
+            time.sleep(.1)
+        driver.find_element(By.CSS_SELECTOR, "[aria-label='Anmelden'][role='button']").click()
+        for _ in range(7):
+            time.sleep(2)
+            remove_insta_cookies()
+        input('Press ENTER if the Login was successful')
     except:
-        nameslot = driver.find_element('xpath', '//*[@id="loginForm"]/div/div[1]/div/label/input')
-    pwslot = driver.find_element(By.CSS_SELECTOR,'input[aria-label*="Passwort"]')
-    nameslot.clear()
-    # Typing char for char to simulate a human like behavior
-    # classic and global version:
-    # nameslot.send_keys(username_insta)
-    for char in username:
-        nameslot.send_keys(char)
-        time.sleep(.1)
-    pwslot.clear()
-    for char in password:
-        pwslot.send_keys(char)
-        time.sleep(.1)
-    driver.find_element('xpath', "//*[text()='Anmelden']").click()
-    for _ in range(7):
-        time.sleep(2)
-        remove_insta_cookies()
+        input('log in manually')
+    if '/auth_platform' in driver.current_url:
+        input('Press ENTER after 2FA')
 
 # post_crawler functions
 def clickOnFirst(startlink):
@@ -117,6 +119,7 @@ def get_commentnumber(old_comments = 0):
     pyautogui.moveTo(1385,755)
     soup = BeautifulSoup(driver.page_source,'lxml')
     comments = len(soup.find_all('ul', class_='_a9ym'))
+    # ('span', class_='xt0psk2')
     if comments == 0:
         comments_elem = soup.find('div', class_='x78zum5 xdt5ytf x1iyjqo2')
         if comments_elem:
@@ -167,8 +170,8 @@ def comment_crawler(driver, post_text):
         if no_more_comments >= 3:
             break
         # If there are too much comments, scrape them later
-        if comments >= 500:
-            comments = 500
+        if comments >= 100:
+            comments = 100
             break
     return comments
 
@@ -274,8 +277,8 @@ def scrape_post(post_url, p_name, upper_dt, lower_dt):
         if len(content) > 10:
             reactions_raw = post_text.split(content[-10:])[-1].split('Weitere Beiträge')[0]
     # Not all comments are shown, so I have to estimate the real number:
-    if comments and 200 > comments > 14 :
-        comments = round(comments * 1.2)
+    if comments and 100 > comments > 14 :
+        comments = round(comments * 1.1)
 
     scraped_data = [post_date, likes, comments, image, video, calls, post_url, content,reactions_raw]
     return post_dt, scraped_data
@@ -343,11 +346,7 @@ if __name__ == '__main__':
     all_data = []
     driver = start_browser(webdriver, Service, chromedriver_path)
     go_to_page(driver, startpage)
-    try:
-        login(username_insta, password_insta)
-        input('Press ENTER after the page is loaded')
-    except:
-        input('Press ENTER after manual login')
+    login(driver, username_insta, password_insta)
 
     # Instagram will likely block your account after two hours of scraping
     start_time = time.time()
@@ -357,6 +356,8 @@ if __name__ == '__main__':
     for ID, row in df_source.iterrows():
         url = extract_text(row['url'])
         crawl, ID, p_name, post_url = check_conditions(ID, start_ID, row, col_names, lower_dt)
+        if ID < start_ID:
+            continue
         if not crawl:
             continue
 
@@ -369,7 +370,7 @@ if __name__ == '__main__':
         content_list = []
         while True:
             counter += 1
-            if counter > 3000 or oor_posts > 50:
+            if counter > 3000 or oor_posts > 60:
                 break
             post_dt, scraped_data = scrape_post(post_url, p_name, upper_dt, lower_dt)
             if not post_dt or not scraped_data:
