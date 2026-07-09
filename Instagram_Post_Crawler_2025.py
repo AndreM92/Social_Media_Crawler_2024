@@ -143,7 +143,7 @@ def comment_crawler(driver, post_text):
     if comments <= 5:
         return comments
     no_more_comments = 0
-    for i in range(500):
+    for i in range(100):
         soup_buttons = soup.find_all('div',class_='_abm0')
         button = False
         for pos, b in enumerate(soup_buttons):
@@ -154,8 +154,6 @@ def comment_crawler(driver, post_text):
             buttons = driver.find_elements(By.CLASS_NAME,'_abm0')
             try:
                 buttons[button].click()
-                if i >= 500:
-                    time.sleep(1)
                 if i >= 100:
                     time.sleep(1)
             except:
