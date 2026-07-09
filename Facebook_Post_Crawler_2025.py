@@ -273,7 +273,7 @@ if __name__ == '__main__':
     try:
         from credentials_file import useremail_fb, password_fb
     except:
-        username_fb = str(input('Enter your username:')).strip()
+        useremail_fb = str(input('Enter your username:')).strip()
         password_fb = str(input('Enter your password:')).strip()
     os.chdir(file_path)
     file ='Profile_' + platform + '_' + str(datetime.now().year)
