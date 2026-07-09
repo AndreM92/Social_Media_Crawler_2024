@@ -14,9 +14,8 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.facebook.com/'
 platform = 'Facebook'
 
-folder_name = "SMP_Energieanbieter_2026"
-upper_datelimit = '2026-05-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop/' + folder_name
+upper_datelimit = '2026-07-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mobilfunk_2026'
 ########################################################################################################################
 
 # Facebook Login function
@@ -312,13 +311,13 @@ if __name__ == '__main__':
         distinct_content = []
         count_p = 0
         no_p = 0
-#        days_delta = (last_post_dt - lower_dt).days
-#        scrolls = round(days_delta / 2)
-#        if scrolls < 80:
-#            scrolls = 80
-#        elif scrolls > 200:
-#            scrolls = 200
-        scrolls = 250
+        days_delta = (last_post_dt - lower_dt).days
+        scrolls = round(days_delta / 2)
+        if scrolls < 100:
+            scrolls = 100
+        elif scrolls > 200:
+            scrolls = 200
+  #      scrolls = 1
         for _ in range(scrolls):
             len_post_list = len(data_per_company)
             soup = BeautifulSoup(driver.page_source, 'html.parser')
