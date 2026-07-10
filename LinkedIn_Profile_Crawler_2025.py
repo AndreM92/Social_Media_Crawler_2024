@@ -15,9 +15,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.linkedin.com/login/de'
 platform = 'LinkedIn'
 
-folder_name = "SMP_Energieanbieter_2026"
-file_name = "Auswahl_SMP Energieanbieter 2026_20260507"
-upper_datelimit = '2026-05-01'
+folder_name = "SMP_Mobilfunk_2026"
+file_name = "Auswahl SMP Mobilfunk 2026_20260706"
+upper_datelimit = '2026-07-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -141,8 +141,13 @@ def scrapeProfile(company, link):
         desc2 = pagetext
     if 'Übersicht' in desc2:
         desc2 = desc2.split('Übersicht', 1)[1].strip()
-    driver.get(new_url + 'posts/?feedView=all')
-    time.sleep(2)
+    if not new_url[-1] == '/':
+        new_url = new_url + '/'
+    try:
+        driver.get(new_url + 'posts/?feedView=all')
+        time.sleep(3)
+    except:
+        return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = str(get_visible_text(Comment, soup))
     posts = soup.find_all('div', class_='ember-view occludable-update')
