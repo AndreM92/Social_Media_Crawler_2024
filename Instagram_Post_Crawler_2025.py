@@ -121,6 +121,7 @@ def get_commentnumber(old_comments = 0):
     comments = len(soup.find_all('ul', class_='_a9ym'))
     # ('span', class_='xt0psk2')
     if comments == 0:
+        time.sleep(1)
         comments_elem = soup.find('div', class_='x78zum5 xdt5ytf x1iyjqo2')
         if comments_elem:
             comments = len(comments_elem)
