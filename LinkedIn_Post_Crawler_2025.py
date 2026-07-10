@@ -14,9 +14,8 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.linkedin.com/login/de'
 platform = 'LinkedIn'
 
-folder_name = "SMP_Energieanbieter_2026"
-upper_datelimit = '2026-05-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop/' + folder_name
+upper_datelimit = '2026-07-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mobilfunk_2026'
 ########################################################################################################################
 
 # Login function
@@ -88,9 +87,11 @@ def check_conditions(ID, p_name, row, lower_dt):
 #    if not last_datestr or len(url) < 10 or len(last_posts) <= 4 or 'Keine Beiträge' in last_posts:
     if (lower_dt - timedelta(days=31)) > last_post:
         return False
+    if not url[-1] == '/':
+        url = url + '/'
     try:
         driver.get(url + 'posts/?feedView=all')
-        time.sleep(2)
+        time.sleep(3)
     except:
         return False
     return True
