@@ -15,9 +15,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.youtube.com/'
 platform = 'YouTube'
 
-folder_name = "SMP_ÖPNV_2026"
-file_name = "Auswahl SMP ÖPNV_2026-03-02"
-upper_datelimit = '2026-03-01'
+folder_name = "SMP_Mobilfunk_2026"
+file_name = "Auswahl SMP Mobilfunk 2026_20260706"
+upper_datelimit = '2026-07-01'
 file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
 source_file = file_name + ".xlsx"
 ########################################################################################################################
@@ -88,6 +88,7 @@ def get_video_title(soup):
                 break
     return title
 
+
 def get_video_details(soup):
     date_str, date, views, desc = ['' for _ in range(4)]
     desc_elem = soup.find('div',{'id':'bottom-row'})
@@ -96,6 +97,8 @@ def get_video_details(soup):
         desc = full_desc
         if 'Weniger anzeigen' in desc:
             desc = desc.split('Weniger anzeigen',1)[1].strip()
+            if len(desc) < 5:
+                desc = full_desc
         if '...mehr' in desc:
             desc = desc.split('...mehr')[0].strip()
         desc_l = full_desc.split()
@@ -107,10 +110,13 @@ def get_video_details(soup):
                 try:
                     date_dt = datetime.strptime(date_opt, "%d.%m.%Y")
                     date = date_dt.strftime("%d.%m.%Y")
+                    if date in desc:
+                        desc = desc.split(date,1)[1].strip()
                 except:
                     pass
             if views != '' and date != '':
                 break
+    desc = desc.replace('Diesem Video wurde keine Beschreibung hinzugefügt.','').strip()
     if desc == '…':
         desc = ''
     return [date_str, date, views, desc]
@@ -198,15 +204,22 @@ def scrapeProfile(url, comp_keywords):
     for s in span_text:
         if 'Abonnenten' in s and not follower:
             follower = extract_every_number(s)
-        if 'Videos' in s and not total_posts:
+        if 'Video' in s and not total_posts:
             total_posts = extract_every_number(s)
         if follower and total_posts:
             break
-    video_d = soup.find_all('div', {'id': 'details'})
-    if len(video_d) >= 1:
-        videolinks = ['https://www.youtube.com' + v.find('a', href=True)['href'] for v in video_d if v.find('a', href=True)]
-        if len(videolinks) >= 1:
-            link = videolinks[0]
+    videos = soup.find_all('div', {'id': 'content'})
+    if len(videos) >= 1:
+        videolinks = ['https://www.youtube.com' + v.find('a', href=True)['href'] for v in videos if v.find('a', href=True)]
+        videolinks_f = [v for v in videolinks if 'watch' in v and len(v) > 37]
+        if len(videolinks_f) == 0:
+            videolinks = ['https://www.youtube.com' + str(l['href']) for l in soup.find_all('a', href=True) if not 'google' in l['href']]
+            videolinks_f = [v for v in videolinks if '/watch?' in v and len(v) > 37]
+        if len(videolinks_f) >= 1:
+            recent_videolink = videolinks_f[0]
+            # Get the date of the latest video
+            result_row = crawl_video(driver, recent_videolink)
+            last_post = result_row[0]
     driver.get(url + '/about')
     time.sleep(3)
     if not '/about' in driver.current_url:
@@ -215,15 +228,21 @@ def scrapeProfile(url, comp_keywords):
             desc_link.click()
             time.sleep(2)
         except:
-            pass
+            try:
+                button = driver.find_element('xpath', '//button[contains(@class, "ytTruncatedTextAbsoluteButton")]')
+                button.click()
+                time.sleep(2)
+            except:
+                pass
     soup = BeautifulSoup(driver.page_source, 'lxml')
     desc_elem = soup.find('tp-yt-paper-dialog')
     if desc_elem:
         desc = get_visible_text(Comment, desc_elem).replace('Kanalinfo','').strip()
-    # Get the date of the latest video
-    if len(link) >= 10:
-        result_row = crawl_video(driver, link)
-        last_post = result_row[0]
+    else:
+        soup = BeautifulSoup(driver.page_source, 'lxml')
+        pagetext = extract_text(soup)
+        if 'Beschreibung' in pagetext:
+            desc = pagetext.split('Beschreibung', 1)[1].strip()
     return [p_name, follower, total_posts, last_post, url, desc]
 ########################################################################################################################
 
@@ -239,7 +258,7 @@ if __name__ == '__main__':
     data = []
     driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
-    start_ID = 0  # start the crawler at a specific ID
+    start_ID = 39  # start the crawler at a specific ID
 
     # Loop through the profiles
     for ID, row in df_source.iterrows():
@@ -261,6 +280,9 @@ if __name__ == '__main__':
             continue
 
         scraped_data = scrapeProfile(url, comp_keywords)
+        if any(e == '' for e in scraped_data):
+            print(scraped_data)
+            break
         full_row = [ID, company, dt_str] + scraped_data
         data.append(full_row)
         start_ID = ID + 1
