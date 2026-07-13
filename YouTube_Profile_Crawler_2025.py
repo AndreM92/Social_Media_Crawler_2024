@@ -258,7 +258,7 @@ if __name__ == '__main__':
     data = []
     driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
-    start_ID = 39  # start the crawler at a specific ID
+    start_ID = 0  # start the crawler at a specific ID
 
     # Loop through the profiles
     for ID, row in df_source.iterrows():
