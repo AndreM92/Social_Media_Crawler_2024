@@ -15,8 +15,8 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.youtube.com/'
 platform = 'YouTube'
 
-upper_datelimit = '2026-03-01'
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_ÖPNV_2026'
+upper_datelimit = '2026-07-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mobilfunk_2026'
 ########################################################################################################################
 
 def open_and_check_page(link):
@@ -169,7 +169,12 @@ def getVideolinks(url):
         driver.get(url + '/videos')
         time.sleep(4)
     except:
-        return []
+        time.sleep(2)
+        try:
+            driver.get(url + '/videos')
+            time.sleep(4)
+        except:
+            return []
     driver.execute_script("window.scrollBy(0, 3000);")
     time.sleep(2)
     soup = BeautifulSoup(driver.page_source, 'lxml')
@@ -193,10 +198,16 @@ def getVideolinks(url):
     videos = soup.find_all('div',{'id':'details'})
     if len(videos) == 0:
         videos = soup.find_all('div', {'id': 'content'})
+    if len(videos) == 0:
+        return videos
     videolinks_r = ['https://www.youtube.com' + v.find('a',href=True)['href'] for v in videos if v.find('a',href=True)]
-    videolinks = [v for v in videolinks_r if len(v) > 37]
+    videolinks_f = [v for v in videolinks_r if len(v) > 37]
+    if len(videolinks_f) == 0:
+        videolinks = ['https://www.youtube.com' + str(l['href']) for l in soup.find_all('a', href=True) if
+                      not 'google' in l['href']]
+        videolinks_f = [v for v in videolinks if '/watch?' in v and len(v) > 37]
 #    print(f'Anzahl der Videolinks: {len(videolinks)}')
-    return videolinks
+    return videolinks_f
 
 def check_conditions(ID, row, start_at=0):
     if ID < start_at:      # If you want to skip some rows
@@ -260,6 +271,7 @@ if __name__ == '__main__':
     all_data = []
     driver = start_browser(webdriver, Service, chromedriver_path, headless=False, muted=True)
     go_to_page(driver, startpage)
+    time.sleep(3)
     start_ID = 0  # start the crawler at a specific ID
 
     # Iterate over the companies
@@ -283,6 +295,7 @@ if __name__ == '__main__':
         data_per_company = crawl_all_videos(dt_str, row, videolinks)
         all_data += data_per_company
 #        start_ID = ID + 1
+
 
         # Create a DataFrame with all posts
         header1 = ['ID_A', 'profile_name', 'ID_P', 'Erhebung', 'Datum']

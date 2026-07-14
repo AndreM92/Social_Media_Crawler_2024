@@ -281,8 +281,8 @@ if __name__ == '__main__':
 
         scraped_data = scrapeProfile(url, comp_keywords)
         if any(e == '' for e in scraped_data):
-            print(scraped_data)
-            break
+            print('Please check:')
+#            break
         full_row = [ID, company, dt_str] + scraped_data
         data.append(full_row)
         start_ID = ID + 1
