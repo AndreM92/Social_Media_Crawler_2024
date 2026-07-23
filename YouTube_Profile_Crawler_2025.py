@@ -296,7 +296,7 @@ if __name__ == '__main__':
     # Export to Excel
     #    dt_str_now = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
     dt_str_now = datetime.now().strftime("%Y-%m-%d")
-    recent_filename = 'Profile_' + platform + '_2' + dt_str_now + '.xlsx'
+    recent_filename = 'Profile_' + platform + '_' + dt_str_now + '.xlsx'
     df_profiles.to_excel(recent_filename)
 
     driver.quit()
