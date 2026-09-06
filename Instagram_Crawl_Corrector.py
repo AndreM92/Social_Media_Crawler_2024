@@ -16,9 +16,9 @@ path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social
 startpage = 'https://www.instagram.com/'
 platform = 'Instagram'
 
-file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Energieanbieter_2026'
-source_file = 'Beiträge_Instagram_2026_ungeprüft' +'.xlsx'
-upper_datelimit = '2026-05-01'
+file_path = r'C:\Users\andre\OneDrive\Desktop\SMP_Mobilfunk_2026'
+source_file = 'Beiträge_Instagram_2026-08-15' +'.xlsx'
+upper_datelimit = '2026-07-01'
 upper_dt = datetime.strptime(upper_datelimit,"%Y-%m-%d")
 lower_dt = upper_dt - timedelta(days=365)
 ########################################################################################################################
@@ -418,7 +418,7 @@ if __name__ == '__main__':
                     soup = BeautifulSoup(driver.page_source,'html.parser')
                     likes = len(soup.find_all('div',class_="_ap3a _aaco _aacw _aad6 _aade"))
             corr += 1
-        if comments >= 200:
+        if comments >= 20:
             try:
                 driver.get(row['Link'])
                 WebDriverWait(driver, 7).until(
