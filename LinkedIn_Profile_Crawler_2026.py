@@ -1,0 +1,294 @@
+
+import os
+import sys
+import requests
+from bs4 import BeautifulSoup
+from bs4.element import Comment
+import lxml
+import time
+import pandas as pd
+import re
+from datetime import datetime, timedelta
+
+# Settings
+chromedriver_path = r"C:\Users\andre\Documents\Python\chromedriver-win64\chromedriver.exe"
+path_to_crawler_functions = r"C:\Users\andre\Documents\Python\Web_Crawler\Social_Media_Crawler_2024"
+startpage = 'https://www.linkedin.com/login/de'
+platform = 'LinkedIn'
+
+folder_name = "SMP_Rüstungsunternehmen_2026"
+file_name = "Auswahl_1_Rüstungsunternehmen_2026_20261001"
+upper_datelimit = '2026-10-01'
+file_path = r"C:\Users\andre\OneDrive\Desktop/" + folder_name
+source_file = file_name + ".xlsx"
+
+sys.path.insert(0, path_to_crawler_functions)
+from crawler_functions import *
+
+########################################################################################################################
+# Since 2026 LinkedIn delivers the company pages with hashed css classes (e.g. 'b4la49 b4lguo'), which change
+# regularly. Therefore the elements are found via the page structure and fixed texts instead of class names.
+
+# Login function
+def login(username, password, driver):
+    WebDriverWait(driver,5).until(EC.presence_of_element_located((By.CSS_SELECTOR,'form.login__form')))
+    nameslot = driver.find_element(By.CSS_SELECTOR, 'input#username')
+    pwslot = driver.find_element(By.CSS_SELECTOR,'input#password')
+    nameslot.clear()
+    for char in username:
+        nameslot.send_keys(char)
+        time.sleep(.1)
+    pwslot.clear()
+    for char in password:
+        pwslot.send_keys(char)
+        time.sleep(.1)
+    driver.find_element(By.XPATH, '//button[contains(text(), "Einloggen")]').click()
+    time.sleep(2)
+
+# Build the clean start page url (https://www.linkedin.com/company/<name>/) from every kind of LinkedIn link
+def clean_url(url):
+    match = re.search(r'linkedin\.com/(company|school|showcase)/([^/?#]+)', str(url))
+    if not match:
+        return None
+    return f'https://www.linkedin.com/{match.group(1)}/{match.group(2)}/'
+
+def wait_for_page(driver, xpath, timeout=10):
+    try:
+        WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
+    except:
+        pass
+    time.sleep(1)
+
+# Top card on the start page: h2 (name), p (tagline), info row (industry · location · follower · employees)
+def get_profile_info(soup, company):
+    p_name, follower, employees, desc1, tagline = ['' for _ in range(5)]
+    follower_elem = soup.find(lambda t: t.name == 'p' and 'Follower' in t.get_text())
+    if follower_elem:
+        follower = extract_every_number(extract_text(follower_elem).split('Follower')[0])
+        info_row = follower_elem.parent
+        info_parts = [extract_text(p) for p in info_row.find_all('p')]
+        info_parts = [i for i in info_parts if i and i != '·']
+        desc1 = ' '.join(info_parts)
+        for i in info_parts:
+            if 'Beschäftigte' in i:
+                employees = i.replace('Beschäftigte', '').strip()
+        top_card = info_row
+        for _ in range(6):
+            top_card = top_card.parent
+            if not top_card or top_card.find('h2'):
+                break
+        if top_card:
+            p_name = extract_text(top_card.find('h2'))
+            tagline_parts = [extract_text(p.get_text(' ')) for p in top_card.find_all('p') if not info_row in p.parents]
+            tagline = ' '.join([t for t in tagline_parts if t and t != p_name])
+    if not p_name:
+        names = [extract_text(h) for h in soup.find_all(['h1', 'h2'])]
+        sel_names = [n for n in names if n and company[:4].strip().lower() in n.lower()]
+        if sel_names:
+            p_name = sel_names[0]
+    if not p_name and soup.title:
+        title = re.sub(r'^\(\d+\)\s*', '', extract_text(soup.title))
+        p_name = title.rsplit(':', 1)[0].strip() if ':' in title else ''
+    return p_name, follower, employees, desc1, tagline
+
+# Long description in the section "Übersicht" on the start page
+# Full description with details (website, industry, size, specialties ...) in the section "Übersicht" on /about
+def get_about_description(soup):
+    overview = soup.find(lambda t: t.name == 'h2' and extract_text(t) == 'Übersicht')
+    if not overview:
+        return ''
+    about_parts = []
+    for e in overview.find_all_next(['p', 'h2']):
+        if e.name == 'h2':
+            break
+        about_parts.append(extract_text(e.get_text(' ')))
+    return ' '.join([a for a in about_parts if a])
+
+# Short description in the section "Übersicht" on the start page (fallback, if /about is not available)
+def get_description(soup, pagetext):
+    desc2 = ''
+    overview = soup.find(lambda t: t.name == 'h2' and extract_text(t) == 'Übersicht')
+    if overview:
+        section = overview
+        for _ in range(5):
+            section = section.parent
+            if not section:
+                break
+            text_box = section.find(attrs={'data-testid': 'expandable-text-box'})
+            if text_box:
+                desc2 = extract_text(text_box.get_text(' '))
+                break
+            section_text = extract_text(section)
+            if len(section_text) > len('Übersicht') + 4:
+                desc2 = section_text.split('Übersicht', 1)[-1].replace('Alle anzeigen', '').strip()
+                break
+    if len(desc2) <= 4:
+        desc2 = pagetext
+        if 'Übersicht' in desc2:
+            desc2 = desc2.split('Übersicht', 1)[1].strip()
+    return desc2
+
+# Every post container is a div[role=listitem] with the hidden headline "Feed-Beitrag"
+def get_posts(soup):
+    posts = []
+    for h in soup.find_all('h2'):
+        if extract_text(h) != 'Feed-Beitrag':
+            continue
+        post = h.find_parent(attrs={'role': 'listitem'})
+        if post and post not in posts:
+            posts.append(post)
+    return posts
+
+def find_post_date(p):
+    post_date_dt = None
+    last_post = None
+    date_elements = ['Min', 'Std', 'Tag', 'Woche', 'Monat', 'Jahr']
+    span_elems = p.find_all('span')
+    for e in span_elems:
+        if any(d in str(e) for d in date_elements):
+            date_str = get_visible_text(Comment, e)
+            if '•' in date_str:
+                date_str_options = date_str.split('•')
+                for de in date_str_options:
+                    if any(d in str(de) for d in date_elements):
+                        date_str = str(de).strip()
+                        break
+            if not re.match(r'^\d+\s*(Min|Std|Tag|Woche|Monat|Jahr)', date_str):
+                continue
+            try:
+                post_date_dt, last_post = get_approx_date(datetime.now(), date_str)
+                break
+            except:
+                pass
+    return post_date_dt, last_post
+
+
+def scrapeProfile(company, link):
+    p_name, follower, employees, last_post, desc1, desc2, tagline = ['' for _ in range(7)]
+    new_url = clean_url(link)
+    driver.get(new_url or link)
+    wait_for_page(driver, "//p[contains(., 'Follower')]")
+    # Links with IDs or subpages get redirected, so the url is cleaned again
+    if clean_url(driver.current_url) and clean_url(driver.current_url) != new_url:
+        new_url = clean_url(driver.current_url)
+        driver.get(new_url)
+        wait_for_page(driver, "//p[contains(., 'Follower')]")
+    if not new_url:
+        new_url = driver.current_url
+    soup = BeautifulSoup(driver.page_source, 'lxml')
+    pagetext = get_visible_text(Comment, soup)
+    not_used = 'wurde noch nicht in Anspruch genommen'
+    if not_used in pagetext:
+        return ['Seite ' + not_used, follower, employees, last_post, new_url, tagline, desc1, desc2]
+
+    p_name, follower, employees, desc1, tagline = get_profile_info(soup, company)
+    desc2 = get_description(soup, pagetext)
+
+    # The complete description is only available on the subpage /about
+    try:
+        driver.get(new_url + 'about/')
+        wait_for_page(driver, "//h2[contains(., 'Übersicht')]")
+        about_desc = get_about_description(BeautifulSoup(driver.page_source, 'lxml'))
+        if len(about_desc) > 4:
+            desc2 = about_desc
+    except:
+        pass
+
+    try:
+        driver.get(new_url + 'posts/?feedView=all')
+        wait_for_page(driver, "//h2[contains(., 'Feed-Beitrag')] | //*[contains(text(), 'Noch keine Beiträge')]")
+        # Load some more posts, because the first post is not always the latest one
+        driver.execute_script('window.scrollTo(0, document.body.scrollHeight)')
+        time.sleep(2)
+    except:
+        return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
+    soup = BeautifulSoup(driver.page_source, 'lxml')
+    pagetext = str(get_visible_text(Comment, soup))
+    posts = get_posts(soup)
+    if len(posts) == 0 or not 'posts/?' in driver.current_url or "Noch keine Beiträge" in pagetext:
+        last_post = 'Keine Beiträge'
+        return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
+
+    post_dates = [find_post_date(p) for p in posts]
+    post_dates = [d for d in post_dates if d[0]]
+    if not post_dates:
+        last_post = 'Keine Beiträge'
+        return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
+    post_date_dt, last_post = max(post_dates, key=lambda d: d[0])
+
+    return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
+########################################################################################################################
+
+# Profile crawler
+if __name__ == '__main__':
+    # Settings for profile scraping
+    os.chdir(path_to_crawler_functions)
+    try:
+        from credentials_file import *
+    except:
+        useremail_li = str(input('Enter your user-email:')).strip()
+        password_li = str(input('Enter your password:')).strip()
+    os.chdir(file_path)
+    df_source, col_list, comp_header, name_header, dt, dt_str = settings(source_file)
+    col_list = list(df_source.columns)
+
+    # Open the browser, go to the startpage and login
+    data = []
+    driver = start_browser(webdriver, Service, chromedriver_path)
+    go_to_page(driver, startpage)
+    try:
+        login(useremail_li, password_li, driver)
+        input('Press ENTER after the page is loaded')
+    except:
+        input('Press ENTER after manual login')
+
+    start_ID = 0
+    # Loop through the profiles
+    for ID, row in df_source.iterrows():
+        if 'ID' in col_list and col_list[0] != 'ID':
+            ID = int(row['ID'])
+        if not 'nan' in str(ID):
+            ID = int(ID)
+        if not str(ID).isdigit():
+            break
+        if ID < start_ID:  # If you want to skip some rows
+            continue
+
+        company = extract_text(row[name_header])
+        link = str(row[platform])
+        if len(link) < 10:
+            empty_row = [ID, company, dt_str] + ['' for _ in range(8)]
+            data.append(empty_row)
+            print(empty_row)
+            continue
+        try:
+            scraped_row = scrapeProfile(company, link)
+        except Exception as e:
+            print(f"Error: {e}")
+            driver.quit()
+            time.sleep(3)
+            driver = start_browser(webdriver, Service, chromedriver_path)
+            go_to_page(driver, startpage)
+            try:
+                login(useremail_li, password_li, driver)
+                input('Press ENTER after the page is loaded')
+            except:
+                input('Press ENTER after manual login')
+            scraped_row = scrapeProfile(company, link)
+
+        data.append([ID, company, dt_str] + scraped_row)
+#        start_ID = ID + 1
+        print([ID, company, dt_str] + scraped_row)
+
+
+    # Create a DataFrame
+    header = ['ID', 'company', 'date', 'profile_name', 'follower', 'employees', 'last_post', 'url', 'tagline',
+              'description1', 'description2']
+    df_profiles = pd.DataFrame(data, columns=header)
+
+    # Export to Excel
+    dt_str_now = datetime.now().strftime("%Y-%m-%d")
+    recent_filename = 'Profile_' + platform + '_' + dt_str_now + '.xlsx'
+    df_profiles.to_excel(recent_filename)
+
+    driver.quit()
