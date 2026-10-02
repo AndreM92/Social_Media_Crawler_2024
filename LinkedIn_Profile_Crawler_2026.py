@@ -128,6 +128,36 @@ def get_description(soup, pagetext):
             desc2 = desc2.split('Übersicht', 1)[1].strip()
     return desc2
 
+POST_XPATH = "//h2[normalize-space()='Feed-Beitrag']/ancestor::div[@role='listitem'][1]"
+
+# Switch the feed from "Beliebteste" to "Aktuell" (= Neueste)
+# For some pages the sorted feed stays empty. Then the page is reloaded and the default feed is used.
+def sort_by_newest():
+    sorted_feed = False
+    try:
+        sort_button = driver.find_element(By.XPATH, "//p[contains(., 'Sortieren nach')]/ancestor::*[@role='button'][1]")
+        if 'Neueste' in sort_button.text:
+            return True
+        driver.execute_script('arguments[0].scrollIntoView({block:"center"})', sort_button)
+        sort_button.click()
+        time.sleep(1.5)
+        options = [o for o in driver.find_elements(By.XPATH, "//*[@role='menuitem']//*[normalize-space(text())='Aktuell']")
+                   if o.is_displayed()]
+        if options:
+            options[0].click()
+            try:
+                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, POST_XPATH)))
+                time.sleep(1)
+                sorted_feed = 'Neueste' in driver.find_element(By.XPATH, "//p[contains(., 'Sortieren nach')]").text
+            except:
+                pass
+    except:
+        pass
+    if not sorted_feed and not driver.find_elements(By.XPATH, POST_XPATH):
+        driver.refresh()
+        wait_for_page(driver, POST_XPATH)
+    return sorted_feed
+
 # Every post container is a div[role=listitem] with the hidden headline "Feed-Beitrag"
 def get_posts(soup):
     posts = []
@@ -161,6 +191,45 @@ def find_post_date(p):
             except:
                 pass
     return post_date_dt, last_post
+
+# Pages with more than 1 million followers only show a rounded number (e.g. "2,1 Mio. Follower:innen")
+# The exact number is shown in the hover card of the company logo in a post
+def get_exact_follower_from_post():
+    from selenium.webdriver.common.action_chains import ActionChains
+    for post in driver.find_elements(By.XPATH, POST_XPATH)[:3]:
+        try:
+            logo = post.find_element(By.XPATH, ".//a[@aria-haspopup='dialog']")
+            driver.execute_script('arguments[0].scrollIntoView({block:"center"})', logo)
+            time.sleep(1.5)
+            ActionChains(driver).move_to_element(logo).perform()
+            t0 = time.time()
+            while time.time() - t0 < 6:
+                time.sleep(1)
+                for dialog in driver.find_elements(By.XPATH, "//*[@role='dialog']"):
+                    if not dialog.is_displayed():
+                        continue
+                    for line in dialog.text.split('\n'):
+                        if 'Follower' in line and not any(r in line for r in ['Tsd.', 'Mio.']):
+                            return extract_every_number(line.split('Follower')[0])
+            # Move the mouse away, so the next hover card can open
+            ActionChains(driver).move_by_offset(0, 300).perform()
+        except:
+            pass
+    return None
+
+# The post id in the id of the text block contains the exact publishing time (first 41 bits = milliseconds since 1970)
+# e.g. "...UserGeneratedContentPostUrn(userGeneratedContentId=7510705806120517632)" or "...shareId=7511780785352544256"
+def get_exact_post_date(p):
+    for e in p.find_all(id=re.compile('commentary')):
+        post_id = re.search(r'(?:userGeneratedContentId|shareId)=(\d{15,})', e['id'])
+        if post_id:
+            try:
+                post_dt = datetime.fromtimestamp((int(post_id.group(1)) >> 22) / 1000)
+                post_dt = datetime(post_dt.year, post_dt.month, post_dt.day)
+                return post_dt, post_dt.strftime("%d.%m.%Y")
+            except:
+                pass
+    return None
 
 
 def scrapeProfile(company, link):
@@ -197,9 +266,13 @@ def scrapeProfile(company, link):
     try:
         driver.get(new_url + 'posts/?feedView=all')
         wait_for_page(driver, "//h2[contains(., 'Feed-Beitrag')] | //*[contains(text(), 'Noch keine Beiträge')]")
-        # Load some more posts, because the first post is not always the latest one
-        driver.execute_script('window.scrollTo(0, document.body.scrollHeight)')
-        time.sleep(2)
+        # The feed is sorted by "Beliebteste", so the first post is not always the latest one
+        if driver.find_elements(By.XPATH, POST_XPATH):
+            sort_by_newest()
+            # Load some more posts (the feed scrolls inside main#workspace)
+            driver.execute_script("const m = document.querySelector('main#workspace') || document.scrollingElement;"
+                                  "m.scrollTop = m.scrollHeight;")
+            time.sleep(3)
     except:
         return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
     soup = BeautifulSoup(driver.page_source, 'lxml')
@@ -209,7 +282,12 @@ def scrapeProfile(company, link):
         last_post = 'Keine Beiträge'
         return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
 
-    post_dates = [find_post_date(p) for p in posts]
+    if any(r + ' Follower' in str(desc1) for r in ['Tsd.', 'Mio.']):
+        exact_follower = get_exact_follower_from_post()
+        if exact_follower:
+            follower = exact_follower
+
+    post_dates = [get_exact_post_date(p) or find_post_date(p) for p in posts]
     post_dates = [d for d in post_dates if d[0]]
     if not post_dates:
         last_post = 'Keine Beiträge'
