@@ -7,6 +7,7 @@ import lxml
 import time
 import pandas as pd
 import re
+import random
 from datetime import datetime, timedelta
 
 # Settings
@@ -23,13 +24,47 @@ from crawler_functions import *
 from selenium.webdriver.common.keys import Keys
 
 ########################################################################################################################
-# Since 2026 LinkedIn delivers the pages with hashed css classes (e.g. 'b4la49 b4lguo'), which change regularly.
-# Therefore the elements are found via the page structure and fixed texts instead of class names:
+# LinkedIn delivers two different layouts, depending on the login session:
+# New layout (2026): hashed css classes (e.g. 'b4la49 b4lguo'), which change regularly, so the elements are found
+# via the page structure and fixed texts instead of class names:
 # - every post is a div[role=listitem] with the hidden headline "Feed-Beitrag"
 # - the feed scrolls inside main#workspace (not the window)
 # - the post urn is part of the id of the text block or of the embed link in the control menu
+# Old layout: every post is a div.occludable-update with the urn in data-urn. Posts outside of the visible area
+# get emptied ("occluded"), so they have to be read while scrolling through the feed.
 
 POST_XPATH = "//h2[normalize-space()='Feed-Beitrag']/ancestor::div[@role='listitem'][1]"
+OLD_POST_CSS = 'div.occludable-update'
+
+# LinkedIn only loads a limited number of posts per feed (400 sorted by date, 500 sorted by relevance)
+FEED_LIMIT = 380
+
+def is_old_layout():
+    return bool(driver.find_elements(By.CSS_SELECTOR, OLD_POST_CSS + ', #sort-dropdown-trigger'))
+
+# Stop everything, if LinkedIn shows a security check (it has to be solved manually)
+def check_for_checkpoint():
+    if 'checkpoint' in driver.current_url or 'authwall' in driver.current_url:
+        raise RuntimeError('LinkedIn security check (checkpoint) - please solve it manually and restart the crawler')
+
+def count_posts():
+    if is_old_layout():
+        return len(driver.find_elements(By.CSS_SELECTOR, OLD_POST_CSS))
+    return len(driver.find_elements(By.XPATH, POST_XPATH))
+
+# Some feeds stop loading automatically and show a button instead
+def click_load_more_button():
+    buttons = [b for b in driver.find_elements(By.XPATH, "//button[contains(., 'Weitere Ergebnisse anzeigen')]")
+               if b.is_displayed()]
+    if not buttons:
+        return False
+    try:
+        driver.execute_script('arguments[0].scrollIntoView({block:"center"})', buttons[0])
+        driver.execute_script('arguments[0].click()', buttons[0])
+        time.sleep(2)
+        return True
+    except:
+        return False
 
 # Login function
 def login(username, password, driver):
@@ -102,20 +137,48 @@ def check_conditions(ID, p_name, row, lower_dt):
         return False
     if not url[-1] == '/':
         url = url + '/'
+    # A short random break between the companies
+    time.sleep(random.uniform(3, 7))
+    driver.get(url + 'posts/?feedView=all')
+    check_for_checkpoint()
     try:
-        driver.get(url + 'posts/?feedView=all')
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located(
-            (By.XPATH, "//h2[normalize-space()='Feed-Beitrag'] | //*[contains(text(), 'Noch keine Beiträge')]")))
-        time.sleep(1)
+        WebDriverWait(driver, 15).until(EC.presence_of_element_located(
+            (By.XPATH, "//h2[normalize-space()='Feed-Beitrag'] | //div[contains(@class, 'occludable-update')]"
+                       " | //*[contains(text(), 'Noch keine Beiträge')]")))
+        time.sleep(3)
     except:
         return False
-    if not driver.find_elements(By.XPATH, POST_XPATH):
+    if count_posts() == 0:
         return False
     return True
+
+# Old layout: dropdown "Sortieren nach: Relevanteste" -> "Aktuellste"
+def sort_by_newest_old():
+    for attempt in range(2):
+        try:
+            trigger = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'sort-dropdown-trigger')))
+            if 'Aktuellste' in trigger.text:
+                return True
+            driver.execute_script('arguments[0].scrollIntoView({block:"center"})', trigger)
+            time.sleep(1)
+            trigger.click()
+            time.sleep(2.5)
+            options = [o for o in driver.find_elements(By.XPATH, "//button[@role='option'][normalize-space(.)='Aktuellste']")
+                       if o.is_displayed()]
+            if options:
+                options[0].click()
+                time.sleep(6)
+            if 'Aktuellste' in driver.find_element(By.ID, 'sort-dropdown-trigger').text:
+                return True
+        except:
+            time.sleep(3)
+    return False
 
 # The feed is sorted by "Beliebteste" by default, so it gets switched to "Aktuell" (= Neueste)
 # For some pages the sorted feed stays empty. Then the page is reloaded and the default feed is used.
 def sort_by_newest():
+    if is_old_layout():
+        return sort_by_newest_old()
     sorted_feed = False
     try:
         sort_button = driver.find_element(By.XPATH, "//p[contains(., 'Sortieren nach')]/ancestor::*[@role='button'][1]")
@@ -148,16 +211,20 @@ def sort_by_newest():
 # Scroll the feed container and wait until new posts are loaded
 # The longer the feed, the longer LinkedIn needs to load the next posts, so the waiting time grows
 def load_more_posts(n_posts):
-    max_wait = min(5 + n_posts * 0.03, 30)
+    check_for_checkpoint()
+    max_wait = min(8 + n_posts * 0.03, 40)
     for attempt in range(3):
         driver.execute_script("const m = document.querySelector('main#workspace') || document.scrollingElement;"
                               "m.scrollTop = m.scrollHeight;")
+        click_load_more_button()
         t0 = time.time()
         while time.time() - t0 < max_wait:
             time.sleep(1)
             if len(driver.find_elements(By.XPATH, POST_XPATH)) > n_posts:
                 time.sleep(1)
                 return True
+            if click_load_more_button():
+                t0 = time.time()
         # Small scroll up and down again to trigger the loading
         driver.execute_script("const m = document.querySelector('main#workspace') || document.scrollingElement;"
                               "m.scrollBy(0, -1500);")
@@ -247,12 +314,66 @@ def scrape_post(p, p_name):
     scraped_post = [post_date, post_type, likes, comments, shares, image, video, link, content]
     return post_date_dt, scraped_post
 
-def scrape_all_posts(ID, p_name, lower_dt, upper_datelimit):
-    upper_dt = datetime.strptime(upper_datelimit, '%Y-%m-%d')
-    # Only a feed sorted by date can be stopped at the end of the time period, otherwise it is scrolled to the end
-    sorted_feed = sort_by_newest()
-    if not sorted_feed:
-        print('Feed not sorted by date, all posts are loaded')
+# Old layout: the counts are in aria-labels like "47 Reaktionen", "5 Kommentare zum Beitrag", "3 Reposts des Beitrags"
+def get_count_old(aria_labels, pattern):
+    for a in aria_labels:
+        match = re.match(r'^\s*([\d.,]+(?:\s*(?:Tsd\.|Mio\.))?)\s+' + pattern, a)
+        if match:
+            return extract_every_number(match.group(1))
+    return 0
+
+def scrape_post_old(p, urn):
+    post_date_dt, post_date = find_post_date(p)
+    post_text = get_visible_text(Comment, p)
+    header = p.select_one('.update-components-header')
+    header_text = get_visible_text(Comment, header) if header else post_text[:300]
+    post_type = 'post'
+    if 'repostet' in header_text or 'hat das geteilt' in header_text:
+        post_type = 'repost'
+    aria_labels = [extract_text(e['aria-label']) for e in p.find_all(['button', 'a', 'span'], attrs={'aria-label': True})]
+    aria_labels = [a for a in aria_labels if a]
+    likes = get_count_old(aria_labels, 'Reaktion')
+    comments = get_count_old(aria_labels, 'Kommentar')
+    shares = get_count_old(aria_labels, 'Repost')
+
+    content = ''
+    content_elem = p.select_one('.update-components-text') or p.find('span', class_='break-words')
+    if content_elem:
+        content = extract_text(content_elem.get_text(' '))
+    if len(str(content)) <= 4:
+        content = post_text
+
+    imagelinks = [e['src'] for e in p.find_all('img', src=True)
+                  if not any(x in e['src'] for x in ['company-logo', 'profile-displayphoto', 'videocover'])]
+    if p.find('video') or p.select_one('.update-components-linkedin-video'):
+        video, image = 1,0
+    elif len(imagelinks) >= 1 or p.select_one('.update-components-document__container, ul.carousel-track'):
+        image, video = 1,0
+    else:
+        image, video = 0,0
+    link = f'https://www.linkedin.com/feed/update/{urn}/'
+    content = content.replace('Hashtag # ','#').replace('#Hashtag', '#')
+    scraped_post = [post_date, post_type, likes, comments, shares, image, video, link, content]
+    return post_date_dt, scraped_post
+
+# Same filter rules for both layouts: exact date from the link, time period and duplicates
+# Returns 'older' for posts before the time period, 'add' for new posts in the time period, otherwise 'skip'
+def check_post(post_dt, postdata, upper_dt, lower_dt, distinct_content):
+    exact_dt = get_date_from_link(postdata[7])
+    if exact_dt:
+        post_dt = exact_dt
+        postdata[0] = exact_dt.strftime("%d.%m.%Y")
+    if not post_dt or post_dt >= upper_dt:
+        return 'skip'
+    if post_dt < lower_dt:
+        return 'older'
+    key = postdata[7] or postdata[-1][:99] + postdata[-1][-100:]
+    if key in distinct_content:
+        return 'skip'
+    distinct_content.append(key)
+    return 'add'
+
+def scrape_all_posts_new(ID, p_name, lower_dt, upper_dt, sorted_feed):
     data_per_company = []
     distinct_content = []
     id_p = 0
@@ -265,21 +386,14 @@ def scrape_all_posts(ID, p_name, lower_dt, upper_datelimit):
             post_dt, postdata = scrape_post(p, p_name)
             if not postdata[7]:
                 postdata[7] = get_link_from_menu(post_elem)
-            exact_dt = get_date_from_link(postdata[7])
-            if exact_dt:
-                post_dt = exact_dt
-                postdata[0] = exact_dt.strftime("%d.%m.%Y")
-            if not post_dt or post_dt >= upper_dt:
-                continue
+            result = check_post(post_dt, postdata, upper_dt, lower_dt, distinct_content)
             # Count the posts in a row, which are older than the time period (a pinned post may be old as well)
-            if post_dt < lower_dt:
+            if result == 'older':
                 n_older += 1
                 continue
-            n_older = 0
-            key = postdata[7] or postdata[-1][:99] + postdata[-1][-100:]
-            if key in distinct_content:
+            if result == 'skip':
                 continue
-            distinct_content.append(key)
+            n_older = 0
             full_row = [ID, p_name, id_p, dt_str] + postdata
             print(full_row[:-1] + [str(full_row[-1])[:60]])
             data_per_company.append(full_row)
@@ -287,10 +401,163 @@ def scrape_all_posts(ID, p_name, lower_dt, upper_datelimit):
         n_done = len(post_elems)
         if sorted_feed and n_older >= 5:
             print('Reached the end of the time period')
-            break
+            return data_per_company, n_done, True
         if not load_more_posts(n_done):
             print('No more new posts')
             break
+    return data_per_company, n_done, False
+
+# Old layout: read the rendered posts, which were not read yet, and mark them in the browser (data-crawled)
+# Only the rendered posts are read (the whole page source gets very large for long feeds)
+def read_rendered_posts_old():
+    return driver.execute_script(
+        "return [...document.querySelectorAll('div.occludable-update')].map(e => {"
+        "  if (e.dataset.crawled || !e.querySelector('[data-urn]')) return null;"
+        "  e.dataset.crawled = '1'; return e.outerHTML; }).filter(x => x);")
+
+# Posts, which were scrolled past before they were rendered, are emptied again by LinkedIn.
+# They are scrolled into view one by one and read afterwards.
+def read_skipped_posts_old():
+    post_htmls = []
+    skipped = driver.execute_script(
+        "return [...document.querySelectorAll('div.occludable-update')].map((e, i) => "
+        "  [i, e.dataset.crawled, Number(e.dataset.tries || 0), e.getBoundingClientRect().bottom])"
+        ".filter(x => !x[1] && x[2] < 2 && x[3] < 0).map(x => x[0]);")
+    if not skipped:
+        return post_htmls
+    scroll_y = driver.execute_script('return window.scrollY')
+    for i in skipped:
+        driver.execute_script(
+            "const e = document.querySelectorAll('div.occludable-update')[arguments[0]];"
+            "e.dataset.tries = Number(e.dataset.tries || 0) + 1; e.scrollIntoView({block: 'center'});", i)
+        time.sleep(1.2)
+        post_htmls += read_rendered_posts_old()
+    driver.execute_script('window.scrollTo(0, arguments[0])', scroll_y)
+    time.sleep(1)
+    return post_htmls
+
+# Old layout: the page is scrolled step by step and the rendered posts are read after every step
+def scrape_all_posts_old(ID, p_name, lower_dt, upper_dt, sorted_feed):
+    data_per_company = []
+    distinct_content = []
+    seen_urns = set()
+    id_p = 0
+    n_older = 0
+    bottom_tries = 0
+    while bottom_tries < 3:
+        post_htmls = read_skipped_posts_old() + read_rendered_posts_old()
+        for post_html in post_htmls:
+            p = BeautifulSoup(post_html, 'lxml')
+            urn_elem = p.find(attrs={'data-urn': re.compile(r'urn:li:(activity|ugcPost|share):\d+')})
+            if not urn_elem or urn_elem['data-urn'] in seen_urns:
+                continue
+            urn = urn_elem['data-urn']
+            seen_urns.add(urn)
+            post_dt, postdata = scrape_post_old(p, urn)
+            result = check_post(post_dt, postdata, upper_dt, lower_dt, distinct_content)
+            if result == 'older':
+                n_older += 1
+                continue
+            if result == 'skip':
+                continue
+            n_older = 0
+            full_row = [ID, p_name, id_p, dt_str] + postdata
+            print(full_row[:-1] + [str(full_row[-1])[:60]])
+            data_per_company.append(full_row)
+            id_p += 1
+        if sorted_feed and n_older >= 5:
+            print('Reached the end of the time period')
+            return data_per_company, len(seen_urns), True
+        # Scroll one step further; at the end of the page wait for new posts (longer for long feeds)
+        check_for_checkpoint()
+        height = driver.execute_script('return document.body.scrollHeight')
+        driver.execute_script('window.scrollBy(0, 1500);')
+        time.sleep(random.uniform(1.5, 2.5))
+        at_bottom = driver.execute_script('return window.scrollY + window.innerHeight >= document.body.scrollHeight - 50')
+        if not at_bottom:
+            bottom_tries = 0
+            continue
+        max_wait = min(8 + len(seen_urns) * 0.03, 40)
+        t0 = time.time()
+        loaded = False
+        while time.time() - t0 < max_wait:
+            if click_load_more_button():
+                t0 = time.time()
+            time.sleep(1)
+            if driver.execute_script('return document.body.scrollHeight') > height + 100:
+                loaded = True
+                break
+        if loaded:
+            bottom_tries = 0
+        else:
+            bottom_tries += 1
+            driver.execute_script('window.scrollBy(0, -1500);')
+            time.sleep(1)
+    # Last check for skipped posts at the end of the feed
+    for post_html in read_skipped_posts_old() + read_rendered_posts_old():
+        p = BeautifulSoup(post_html, 'lxml')
+        urn_elem = p.find(attrs={'data-urn': re.compile(r'urn:li:(activity|ugcPost|share):\d+')})
+        if not urn_elem or urn_elem['data-urn'] in seen_urns:
+            continue
+        seen_urns.add(urn_elem['data-urn'])
+        post_dt, postdata = scrape_post_old(p, urn_elem['data-urn'])
+        if check_post(post_dt, postdata, upper_dt, lower_dt, distinct_content) == 'add':
+            full_row = [ID, p_name, id_p, dt_str] + postdata
+            print(full_row[:-1] + [str(full_row[-1])[:60]])
+            data_per_company.append(full_row)
+            id_p += 1
+    print('No more new posts')
+    return data_per_company, len(seen_urns), False
+
+# For very active accounts LinkedIn stops loading the feed after about 400 posts, so only a part of the time period
+# can be crawled. Then dummy posts with the average values and without content are added, so that the number of posts
+# is extrapolated to the whole time period. The dummy posts are spread evenly over the missing time span.
+def add_dummy_posts(data_per_company, ID, p_name, lower_dt, upper_dt):
+    if not data_per_company:
+        return data_per_company
+    dates = [datetime.strptime(r[4], "%d.%m.%Y") for r in data_per_company]
+    oldest_dt = min(dates)
+    covered_days = (upper_dt - oldest_dt).days
+    total_days = (upper_dt - lower_dt).days
+    if covered_days <= 0 or covered_days >= total_days - 14:
+        return data_per_company
+    n_posts = len(data_per_company)
+    n_dummies = round(n_posts * total_days / covered_days) - n_posts
+    if n_dummies <= 0:
+        return data_per_company
+    def mean_of(col):
+        values = [r[col] for r in data_per_company if isinstance(r[col], (int, float))]
+        return round(sum(values) / len(values)) if values else 0
+    likes, comments, shares = mean_of(6), mean_of(7), mean_of(8)
+    # Same share of images and videos as in the crawled posts
+    n_images = round(sum(r[9] for r in data_per_company) / n_posts * n_dummies)
+    n_videos = round(sum(r[10] for r in data_per_company) / n_posts * n_dummies)
+    missing_days = (oldest_dt - lower_dt).days
+    id_p = n_posts
+    for i in range(n_dummies):
+        dummy_dt = lower_dt + timedelta(days=missing_days * (i + 0.5) / n_dummies)
+        image = 1 if i < n_images else 0
+        video = 1 if n_images <= i < n_images + n_videos else 0
+        dummy = [ID, p_name, id_p, dt_str, dummy_dt.strftime("%d.%m.%Y"), 'dummy', likes, comments, shares,
+                 image, video, '', '']
+        data_per_company.append(dummy)
+        id_p += 1
+    print(f'{n_dummies} dummy posts added ({n_posts} crawled posts since {oldest_dt.strftime("%d.%m.%Y")})')
+    return data_per_company
+
+def scrape_all_posts(ID, p_name, lower_dt, upper_datelimit):
+    upper_dt = datetime.strptime(upper_datelimit, '%Y-%m-%d')
+    # Only a feed sorted by date can be stopped at the end of the time period, otherwise it is scrolled to the end
+    sorted_feed = sort_by_newest()
+    if not sorted_feed:
+        print('Feed not sorted by date, all posts are loaded')
+    if is_old_layout():
+        data_per_company, n_loaded, reached_end = scrape_all_posts_old(ID, p_name, lower_dt, upper_dt, sorted_feed)
+    else:
+        data_per_company, n_loaded, reached_end = scrape_all_posts_new(ID, p_name, lower_dt, upper_dt, sorted_feed)
+    # The feed limit was reached before the beginning of the time period
+    if not reached_end and n_loaded >= FEED_LIMIT:
+        data_per_company = add_dummy_posts(data_per_company, ID, p_name, lower_dt, upper_dt)
     return data_per_company
 ########################################################################################################################
 
@@ -332,6 +599,9 @@ if __name__ == '__main__':
             continue
         try:
             go_crawl = check_conditions(ID, p_name, row, lower_dt)
+        except RuntimeError as e:
+            print(e)
+            break
         except Exception as e:
             print(f"Error: {e}")
             driver.quit()

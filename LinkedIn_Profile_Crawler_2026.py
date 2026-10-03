@@ -59,9 +59,32 @@ def wait_for_page(driver, xpath, timeout=10):
         pass
     time.sleep(1)
 
+# Old layout: top card with fixed class names
+def get_profile_info_old(soup):
+    p_name = extract_text(soup.select_one('.org-top-card-summary__title'))
+    tagline = extract_text(soup.select_one('.org-top-card-summary__tagline'))
+    follower, employees = '', ''
+    info_list = soup.select_one('.org-top-card-summary-info-list')
+    info_parts = []
+    if info_list:
+        info_parts = [extract_text(e) for e in info_list.select('.org-top-card-summary-info-list__info-item')]
+        if not info_parts:
+            info_parts = [extract_text(info_list)]
+    for i in info_parts:
+        if 'Follower' in i:
+            follower = extract_every_number(i.split('Follower')[0])
+        if 'Beschäftigte' in i:
+            employees = i.replace('Beschäftigte', '').strip()
+    desc1 = ' '.join([i for i in info_parts if i])
+    return p_name or '', follower, employees, desc1, tagline or ''
+
 # Top card on the start page: h2 (name), p (tagline), info row (industry · location · follower · employees)
 def get_profile_info(soup, company):
     p_name, follower, employees, desc1, tagline = ['' for _ in range(5)]
+    if soup.select_one('.org-top-card-summary__title'):
+        p_name, follower, employees, desc1, tagline = get_profile_info_old(soup)
+        if p_name and desc1:
+            return p_name, follower, employees, desc1, tagline
     follower_elem = soup.find(lambda t: t.name == 'p' and 'Follower' in t.get_text())
     if follower_elem:
         follower = extract_every_number(extract_text(follower_elem).split('Follower')[0])
@@ -91,13 +114,24 @@ def get_profile_info(soup, company):
         p_name = title.rsplit(':', 1)[0].strip() if ':' in title else ''
     return p_name, follower, employees, desc1, tagline
 
-# Long description in the section "Übersicht" on the start page
 # Full description with details (website, industry, size, specialties ...) in the section "Übersicht" on /about
 def get_about_description(soup):
     overview = soup.find(lambda t: t.name == 'h2' and extract_text(t) == 'Übersicht')
     if not overview:
         return ''
     about_parts = []
+    # Old layout: description (p) and details (dt/dd) in a section, until the next h3 outside of the details
+    section = overview.find_parent('section')
+    if section and section.find('dl'):
+        for e in section.find_all(['p', 'dt', 'dd', 'h3']):
+            if e.name == 'h3':
+                if e.find_parent('dt'):
+                    continue
+                break
+            if e.name == 'p' and (e.find_parent('dt') or e.find_parent('dd')):
+                continue
+            about_parts.append(extract_text(e.get_text(' ')))
+        return ' '.join([a for a in about_parts if a])
     for e in overview.find_all_next(['p', 'h2']):
         if e.name == 'h2':
             break
@@ -128,11 +162,37 @@ def get_description(soup, pagetext):
             desc2 = desc2.split('Übersicht', 1)[1].strip()
     return desc2
 
+# LinkedIn delivers two layouts depending on the login session:
+# new layout: div[role=listitem] with the hidden headline "Feed-Beitrag", old layout: div.occludable-update
 POST_XPATH = "//h2[normalize-space()='Feed-Beitrag']/ancestor::div[@role='listitem'][1]"
+OLD_POST_XPATH = "//div[contains(@class, 'occludable-update')]"
+
+def is_old_layout():
+    return bool(driver.find_elements(By.CSS_SELECTOR, 'div.occludable-update, #sort-dropdown-trigger'))
+
+# Old layout: dropdown "Sortieren nach: Relevanteste" -> "Aktuellste"
+def sort_by_newest_old():
+    try:
+        trigger = driver.find_element(By.ID, 'sort-dropdown-trigger')
+        if 'Aktuellste' in trigger.text:
+            return True
+        driver.execute_script('arguments[0].scrollIntoView({block:"center"})', trigger)
+        trigger.click()
+        time.sleep(1.5)
+        options = [o for o in driver.find_elements(By.XPATH, "//button[@role='option'][normalize-space(.)='Aktuellste']")
+                   if o.is_displayed()]
+        if options:
+            options[0].click()
+            time.sleep(4)
+        return 'Aktuellste' in driver.find_element(By.ID, 'sort-dropdown-trigger').text
+    except:
+        return False
 
 # Switch the feed from "Beliebteste" to "Aktuell" (= Neueste)
 # For some pages the sorted feed stays empty. Then the page is reloaded and the default feed is used.
 def sort_by_newest():
+    if is_old_layout():
+        return sort_by_newest_old()
     sorted_feed = False
     try:
         sort_button = driver.find_element(By.XPATH, "//p[contains(., 'Sortieren nach')]/ancestor::*[@role='button'][1]")
@@ -167,6 +227,10 @@ def get_posts(soup):
         post = h.find_parent(attrs={'role': 'listitem'})
         if post and post not in posts:
             posts.append(post)
+    # Old layout: only rendered posts contain the urn (posts outside the visible area are emptied)
+    for post in soup.find_all('div', class_='occludable-update'):
+        if post.find(attrs={'data-urn': re.compile(r'urn:li:(activity|ugcPost|share):\d+')}):
+            posts.append(post)
     return posts
 
 def find_post_date(p):
@@ -192,9 +256,14 @@ def find_post_date(p):
                 pass
     return post_date_dt, last_post
 
-# Pages with more than 1 million followers only show a rounded number (e.g. "2,1 Mio. Follower:innen")
-# The exact number is shown in the hover card of the company logo in a post
-def get_exact_follower_from_post():
+# Pages with many followers only show a rounded number on the start page (e.g. "2,1 Mio. Follower:innen")
+# Old layout: the exact number is part of the post header ("2.128.666 Follower:innen")
+# New layout: the exact number is shown in the hover card of the company logo in a post
+def get_exact_follower_from_post(soup):
+    for e in soup.select('.update-components-actor__description'):
+        e_text = extract_text(e)
+        if 'Follower' in e_text and not any(r in e_text for r in ['Tsd.', 'Mio.']):
+            return extract_every_number(e_text.split('Follower')[0])
     from selenium.webdriver.common.action_chains import ActionChains
     for post in driver.find_elements(By.XPATH, POST_XPATH)[:3]:
         try:
@@ -219,9 +288,12 @@ def get_exact_follower_from_post():
 
 # The post id in the id of the text block contains the exact publishing time (first 41 bits = milliseconds since 1970)
 # e.g. "...UserGeneratedContentPostUrn(userGeneratedContentId=7510705806120517632)" or "...shareId=7511780785352544256"
+# Old layout: data-urn="urn:li:activity:7509292695576834048"
 def get_exact_post_date(p):
-    for e in p.find_all(id=re.compile('commentary')):
-        post_id = re.search(r'(?:userGeneratedContentId|shareId)=(\d{15,})', e['id'])
+    id_texts = [e['id'] for e in p.find_all(id=re.compile('commentary'))]
+    id_texts += ['id=' + e['data-urn'].rsplit(':', 1)[-1] for e in p.find_all(attrs={'data-urn': re.compile(r'urn:li:\w+:\d+')})]
+    for id_text in id_texts:
+        post_id = re.search(r'(?:userGeneratedContentId|shareId|id)=(\d{15,})', id_text)
         if post_id:
             try:
                 post_dt = datetime.fromtimestamp((int(post_id.group(1)) >> 22) / 1000)
@@ -236,12 +308,12 @@ def scrapeProfile(company, link):
     p_name, follower, employees, last_post, desc1, desc2, tagline = ['' for _ in range(7)]
     new_url = clean_url(link)
     driver.get(new_url or link)
-    wait_for_page(driver, "//p[contains(., 'Follower')]")
+    wait_for_page(driver, "//*[contains(text(), 'Follower')]")
     # Links with IDs or subpages get redirected, so the url is cleaned again
     if clean_url(driver.current_url) and clean_url(driver.current_url) != new_url:
         new_url = clean_url(driver.current_url)
         driver.get(new_url)
-        wait_for_page(driver, "//p[contains(., 'Follower')]")
+        wait_for_page(driver, "//*[contains(text(), 'Follower')]")
     if not new_url:
         new_url = driver.current_url
     soup = BeautifulSoup(driver.page_source, 'lxml')
@@ -265,14 +337,16 @@ def scrapeProfile(company, link):
 
     try:
         driver.get(new_url + 'posts/?feedView=all')
-        wait_for_page(driver, "//h2[contains(., 'Feed-Beitrag')] | //*[contains(text(), 'Noch keine Beiträge')]")
+        wait_for_page(driver, "//h2[contains(., 'Feed-Beitrag')] | " + OLD_POST_XPATH +
+                      " | //*[contains(text(), 'Noch keine Beiträge')]")
         # The feed is sorted by "Beliebteste", so the first post is not always the latest one
-        if driver.find_elements(By.XPATH, POST_XPATH):
+        if driver.find_elements(By.XPATH, POST_XPATH + ' | ' + OLD_POST_XPATH):
             sort_by_newest()
-            # Load some more posts (the feed scrolls inside main#workspace)
-            driver.execute_script("const m = document.querySelector('main#workspace') || document.scrollingElement;"
-                                  "m.scrollTop = m.scrollHeight;")
-            time.sleep(3)
+            # Load some more posts (new layout: the feed scrolls inside main#workspace)
+            if not is_old_layout():
+                driver.execute_script("const m = document.querySelector('main#workspace') || document.scrollingElement;"
+                                      "m.scrollTop = m.scrollHeight;")
+                time.sleep(3)
     except:
         return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
     soup = BeautifulSoup(driver.page_source, 'lxml')
@@ -283,7 +357,7 @@ def scrapeProfile(company, link):
         return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
 
     if any(r + ' Follower' in str(desc1) for r in ['Tsd.', 'Mio.']):
-        exact_follower = get_exact_follower_from_post()
+        exact_follower = get_exact_follower_from_post(soup)
         if exact_follower:
             follower = exact_follower
 
