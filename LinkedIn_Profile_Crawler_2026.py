@@ -47,7 +47,8 @@ def login(username, password, driver):
 
 # Build the clean start page url (https://www.linkedin.com/company/<name>/) from every kind of LinkedIn link
 def clean_url(url):
-    match = re.search(r'linkedin\.com/(company|school|showcase)/([^/?#]+)', str(url))
+    # Guest links (linkedin.com/organization-guest/company/<name>) don't have a posts page
+    match = re.search(r'linkedin\.com/(?:organization-guest/)?(company|school|showcase)/([^/?#]+)', str(url))
     if not match:
         return None
     return f'https://www.linkedin.com/{match.group(1)}/{match.group(2)}/'
@@ -85,7 +86,8 @@ def get_profile_info(soup, company):
         p_name, follower, employees, desc1, tagline = get_profile_info_old(soup)
         if p_name and desc1:
             return p_name, follower, employees, desc1, tagline
-    follower_elem = soup.find(lambda t: t.name == 'p' and 'Follower' in t.get_text())
+    # The sidebar (aside) lists other companies with their follower numbers ("Ebenfalls angesehen")
+    follower_elem = soup.find(lambda t: t.name == 'p' and 'Follower' in t.get_text() and not t.find_parent('aside'))
     if follower_elem:
         follower = extract_every_number(extract_text(follower_elem).split('Follower')[0])
         info_row = follower_elem.parent
@@ -166,6 +168,7 @@ def get_description(soup, pagetext):
 # new layout: div[role=listitem] with the hidden headline "Feed-Beitrag", old layout: div.occludable-update
 POST_XPATH = "//h2[normalize-space()='Feed-Beitrag']/ancestor::div[@role='listitem'][1]"
 OLD_POST_XPATH = "//div[contains(@class, 'occludable-update')]"
+FEED_XPATH = "//h2[contains(., 'Feed-Beitrag')] | " + OLD_POST_XPATH + " | //*[contains(text(), 'Noch keine Beiträge')]"
 
 def is_old_layout():
     return bool(driver.find_elements(By.CSS_SELECTOR, 'div.occludable-update, #sort-dropdown-trigger'))
@@ -259,11 +262,14 @@ def find_post_date(p):
 # Pages with many followers only show a rounded number on the start page (e.g. "2,1 Mio. Follower:innen")
 # Old layout: the exact number is part of the post header ("2.128.666 Follower:innen")
 # New layout: the exact number is shown in the hover card of the company logo in a post
-def get_exact_follower_from_post(soup):
+def get_exact_follower_from_post(soup, p_name=''):
     for e in soup.select('.update-components-actor__description'):
         e_text = extract_text(e)
         if 'Follower' in e_text and not any(r in e_text for r in ['Tsd.', 'Mio.']):
             return extract_every_number(e_text.split('Follower')[0])
+    # Without own posts the hover card of another company (e.g. a reposted post) would be read,
+    # so the card has to contain the profile name
+    name_key = str(p_name).strip().lower()[:12]
     from selenium.webdriver.common.action_chains import ActionChains
     for post in driver.find_elements(By.XPATH, POST_XPATH)[:3]:
         try:
@@ -276,6 +282,8 @@ def get_exact_follower_from_post(soup):
                 time.sleep(1)
                 for dialog in driver.find_elements(By.XPATH, "//*[@role='dialog']"):
                     if not dialog.is_displayed():
+                        continue
+                    if name_key and name_key not in dialog.text.lower():
                         continue
                     for line in dialog.text.split('\n'):
                         if 'Follower' in line and not any(r in line for r in ['Tsd.', 'Mio.']):
@@ -302,6 +310,34 @@ def get_exact_post_date(p):
             except:
                 pass
     return None
+
+# Collects the ids of the rendered posts while scrolling through the first part of the feed.
+# LinkedIn only renders the posts in the visible area (old layout: the other containers stay empty), so the page
+# has to be read step by step. The newest date of the collected ids is the latest post (pinned old posts don't matter).
+COLLECT_IDS_JS = (
+    "return [...document.querySelectorAll('[data-urn]')].map(e => e.dataset.urn)"
+    ".concat([...document.querySelectorAll('[id*=commentary]')].map(e => e.id));")
+
+def get_latest_post_date(min_posts=8, max_steps=10):
+    post_ids = set()
+    for step in range(max_steps):
+        for id_text in driver.execute_script(COLLECT_IDS_JS):
+            post_id = re.search(r'(?:activity|ugcPost|share):(\d{15,})|(?:userGeneratedContentId|shareId)=(\d{15,})',
+                                str(id_text))
+            if post_id:
+                post_ids.add(int(post_id.group(1) or post_id.group(2)))
+        if len(post_ids) >= min_posts:
+            break
+        # New layout: the feed scrolls inside main#workspace, old layout: the window
+        driver.execute_script("const m = document.querySelector('main#workspace');"
+                              "const s = (m && m.scrollHeight > m.clientHeight) ? m : document.scrollingElement;"
+                              "s.scrollBy(0, 1200);")
+        time.sleep(2.5)
+    if not post_ids:
+        return None
+    post_dt = datetime.fromtimestamp((max(post_ids) >> 22) / 1000)
+    post_dt = datetime(post_dt.year, post_dt.month, post_dt.day)
+    return post_dt, post_dt.strftime("%d.%m.%Y")
 
 
 def scrapeProfile(company, link):
@@ -336,37 +372,40 @@ def scrapeProfile(company, link):
         pass
 
     try:
-        driver.get(new_url + 'posts/?feedView=all')
-        wait_for_page(driver, "//h2[contains(., 'Feed-Beitrag')] | " + OLD_POST_XPATH +
-                      " | //*[contains(text(), 'Noch keine Beiträge')]")
+        # The feed sometimes needs much longer than 10 seconds, so it gets a longer timeout and a second attempt
+        for attempt in range(2):
+            driver.get(new_url + 'posts/?feedView=all')
+            wait_for_page(driver, FEED_XPATH, timeout=30)
+            if driver.find_elements(By.XPATH, FEED_XPATH):
+                break
+            time.sleep(8)
+        time.sleep(3)
         # The feed is sorted by "Beliebteste", so the first post is not always the latest one
         if driver.find_elements(By.XPATH, POST_XPATH + ' | ' + OLD_POST_XPATH):
             sort_by_newest()
-            # Load some more posts (new layout: the feed scrolls inside main#workspace)
-            if not is_old_layout():
-                driver.execute_script("const m = document.querySelector('main#workspace') || document.scrollingElement;"
-                                      "m.scrollTop = m.scrollHeight;")
-                time.sleep(3)
     except:
         return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
     soup = BeautifulSoup(driver.page_source, 'lxml')
     pagetext = str(get_visible_text(Comment, soup))
-    posts = get_posts(soup)
-    if len(posts) == 0 or not 'posts/?' in driver.current_url or "Noch keine Beiträge" in pagetext:
+    if not 'posts/?' in driver.current_url or "Noch keine Beiträge" in pagetext:
         last_post = 'Keine Beiträge'
         return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
 
     if any(r + ' Follower' in str(desc1) for r in ['Tsd.', 'Mio.']):
-        exact_follower = get_exact_follower_from_post(soup)
+        exact_follower = get_exact_follower_from_post(soup, p_name)
         if exact_follower:
             follower = exact_follower
 
-    post_dates = [get_exact_post_date(p) or find_post_date(p) for p in posts]
-    post_dates = [d for d in post_dates if d[0]]
-    if not post_dates:
+    latest = get_latest_post_date()
+    if not latest:
+        # Fallback: approximate dates ("1 Woche") of the rendered posts
+        post_dates = [find_post_date(p) for p in get_posts(BeautifulSoup(driver.page_source, 'lxml'))]
+        post_dates = [d for d in post_dates if d[0]]
+        latest = max(post_dates, key=lambda d: d[0]) if post_dates else None
+    if not latest:
         last_post = 'Keine Beiträge'
         return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
-    post_date_dt, last_post = max(post_dates, key=lambda d: d[0])
+    post_date_dt, last_post = latest
 
     return [p_name, follower, employees, last_post, new_url, tagline, desc1, desc2]
 ########################################################################################################################
