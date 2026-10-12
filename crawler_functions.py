@@ -73,6 +73,10 @@ def start_browser(webdriver, Service, chromedriver_path, headless=False, muted =
     chrome_options.add_argument("--lang=de-DE")
 #    chrome_options.add_argument("--lang=en-US")
     chrome_options.add_argument("--disable-notifications")
+    # Chrome stops rendering covered windows, then pages like LinkedIn deliver empty post containers
+    for flag in ["--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding",
+                 "--disable-background-timer-throttling", "--disable-features=CalculateNativeWinOcclusion"]:
+        chrome_options.add_argument(flag)
     if headless:
         chrome_options.add_argument('--headless')
     if muted:

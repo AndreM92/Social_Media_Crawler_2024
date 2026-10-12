@@ -139,14 +139,21 @@ def check_conditions(ID, p_name, row, lower_dt):
         url = url + '/'
     # A short random break between the companies
     time.sleep(random.uniform(3, 7))
-    driver.get(url + 'posts/?feedView=all')
-    check_for_checkpoint()
-    try:
-        WebDriverWait(driver, 15).until(EC.presence_of_element_located(
-            (By.XPATH, "//h2[normalize-space()='Feed-Beitrag'] | //div[contains(@class, 'occludable-update')]"
-                       " | //*[contains(text(), 'Noch keine Beiträge')]")))
-        time.sleep(3)
-    except:
+    feed_xpath = ("//h2[normalize-space()='Feed-Beitrag'] | //div[contains(@class, 'occludable-update')]"
+                  " | //*[contains(text(), 'Noch keine Beiträge')]")
+    # The feed sometimes needs much longer than 15 seconds, so it gets a longer timeout and a second attempt
+    feed_loaded = False
+    for attempt in range(2):
+        driver.get(url + 'posts/?feedView=all')
+        check_for_checkpoint()
+        try:
+            WebDriverWait(driver, 35).until(EC.presence_of_element_located((By.XPATH, feed_xpath)))
+            time.sleep(3)
+            feed_loaded = True
+            break
+        except:
+            time.sleep(8)
+    if not feed_loaded:
         return False
     if count_posts() == 0:
         return False
@@ -212,7 +219,7 @@ def sort_by_newest():
 # The longer the feed, the longer LinkedIn needs to load the next posts, so the waiting time grows
 def load_more_posts(n_posts):
     check_for_checkpoint()
-    max_wait = min(8 + n_posts * 0.03, 40)
+    max_wait = min(15 + n_posts * 0.03, 45)
     for attempt in range(3):
         driver.execute_script("const m = document.querySelector('main#workspace') || document.scrollingElement;"
                               "m.scrollTop = m.scrollHeight;")
@@ -477,7 +484,7 @@ def scrape_all_posts_old(ID, p_name, lower_dt, upper_dt, sorted_feed):
         if not at_bottom:
             bottom_tries = 0
             continue
-        max_wait = min(8 + len(seen_urns) * 0.03, 40)
+        max_wait = min(15 + len(seen_urns) * 0.03, 45)
         t0 = time.time()
         loaded = False
         while time.time() - t0 < max_wait:
@@ -558,6 +565,12 @@ def scrape_all_posts(ID, p_name, lower_dt, upper_datelimit):
     # The feed limit was reached before the beginning of the time period
     if not reached_end and n_loaded >= FEED_LIMIT:
         data_per_company = add_dummy_posts(data_per_company, ID, p_name, lower_dt, upper_dt)
+    # Since 2026 the company feeds only go back 12 months from today, so older posts of the time period are missing
+    elif not reached_end and data_per_company:
+        oldest = min(datetime.strptime(r[4], "%d.%m.%Y") for r in data_per_company)
+        if (oldest - lower_dt).days > 7 and (datetime.now() - oldest).days >= 360:
+            print(f'Feed ends at {oldest.strftime("%d.%m.%Y")} (LinkedIn only shows the last 12 months) - '
+                  f'posts before this date have to be added from an earlier crawl')
     return data_per_company
 ########################################################################################################################
 
